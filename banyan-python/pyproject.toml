@@ -2,11 +2,13 @@
 name = "banyan-python"
 version = "0.1.0"
 description = ""
-authors = [""]
+authors = ["Banyan Computing <support@banyancomputing.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
 boto3 = "^1.18.45"
+requests = "^2.27.1"
+toml = "^0.10.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
