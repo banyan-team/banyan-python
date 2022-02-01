@@ -3,9 +3,8 @@ import logging
 import time
 import boto3
 from typing import Dict, Any, Optional, Union
-import warnings
 from config import configure
-from utils import send_request_get_response
+from utils import send_request_get_response, get_aws_config_region
 from pathlib import Path
 import os
 
@@ -28,6 +27,13 @@ def create_cluster(
     nowait=False,
     **kwargs,
 ):
+    """Creates a new cluster or re-creates a previously destroyed cluster.
+    If no vpc_id and subnet_id are provided, 
+    the cluster is by default created in the default public VPC 
+    and subnet in your AWS account.
+    The name of the AWS EC2 Key Pair that will be used 
+    to SSH into clustermust be provided.
+    """
     global clusters
 
     # Configure using parameters

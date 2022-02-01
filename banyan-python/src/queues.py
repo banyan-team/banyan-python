@@ -41,9 +41,9 @@ def receive_next_message(queue_name):
         jobs[job_id].current_status = "failed"
         print(content[12:])
         if content.endswith("MESSAGE_END"):
-            raise RuntimeError("Job failed; see preceding output") # TODO: what kind of error should be raised?
+            raise RuntimeError("Job failed; see preceding output") 
         response: dict[str, any] = {"kind": "JOB_FAILURE"}
-        return response # TODO: is that what we want to return?
+        return response 
     else:
         return json.loads(content)
 
