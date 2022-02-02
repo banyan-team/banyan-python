@@ -4,11 +4,14 @@ import requests
 from config import load_config
 import logging
 from botocore.config import Config
+import boto3
 
+s3 = boto3.client('s3')
 
 def get_aws_config_region():
-    c = Config()
-    return c.region_name
+    return s3.meta.region_name
+    # c = Config()
+    # return c.region_name
 
 def method_to_string(method):
     if str(method).replace("_", "-") in ["create-cluster","destroy-cluster","describe-clusters",
