@@ -1,19 +1,21 @@
-from _typeshed import NoneType
-import logging
-import time
-
-from matplotlib.pyplot import get
-import boto3
-from typing import Dict, Any, Optional, Union
 from config import configure
+from imports import *
+from sessions import get_cluster_name
 from utils import send_request_get_response, get_aws_config_region
-from pathlib import Path
-import os
-from progress.spinner import MoonSpinner
+
+
+# __all__ = [
+#     "create_cluster",
+#     "destroy_cluster",
+#     "delete_cluster",
+#     "update_cluster",
+#     "assert_cluster_is_ready",
+#     "Cluster"
+# ]
 
 
 s3 = boto3.client('s3')
-clusters = Dict()
+clusters = dict()
 
 def create_cluster(
     name:Union[str,NoneType]=None,
@@ -154,7 +156,7 @@ def parsestatus(status: str):
 def get_clusters(cluster_name=None, **kwargs):
     logging.debug("Downloading description of clusters")
     configure(**kwargs)
-    filters = Dict()
+    filters = dict()
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name
     response = send_request_get_response("describe_clusters", Dict[str, Any](filters=filters))
@@ -288,3 +290,13 @@ def upload_to_s3(src_path, dst_name=None, cluster_name=None, **kwargs):
             for file in files:
                 s3.meta.client.upload_file(Path(os.path.join(src_path, file)), bucket_name, os.path.join(dst_name, file))
     return dst_name
+
+def s3_bucket_arn_to_name(s3_bucket_arn: str):
+    # Get s3 bucket name from arn
+    s3_bucket_name = s3_bucket_arn.split(':')[-1]
+    if s3_bucket_name.endswith("/") or s3_bucket_name.endswith("*"):
+        # TODO: Is :-2 right or is it 1:-2
+        s3_bucket_name = s3_bucket_name[:-2]
+    elif s3_bucket_name.endswith("/*"):
+        s3_bucket_name = s3_bucket_name[:-3]
+    return s3_bucket_name
