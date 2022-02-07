@@ -1,6 +1,22 @@
 from imports import *
-from config import load_config
+from operator import truediv
+import boto3
+import hashlib
+import inspect
+import logging
+import os
+import platform
+import pytz 
+import requests
+import toml
+import urllib3
 
+from botocore.exceptions import ClientError
+from config import load_config
+from datetime import datetime
+from typing import Dict
+
+s3_client = boto3.client('s3')
 
 s3 = boto3.client('s3')
 
@@ -43,3 +59,95 @@ def send_request_get_response(endpoint: str, content:dict):
 
 def is_debug_on():
     return logging.DEBUG >= logging.root.level
+
+def get_python_version():
+    """Gets the python version.
+    
+    Returns
+    -------
+    string
+        Python version is returned as a string
+    """
+    return (platform.python_version())
+
+def parse_time(time):
+    """Converts given time to local timezone.
+    
+    Parameters
+    ---------
+    time : string
+        The current time in the format "yyyy-mm-dd-HH:MM:SSzzzz"
+    Returns
+    -------
+    string
+        The DateTime is returned.
+    """
+    time = datetime.strptime(time[:-4], '%Y-%m-%d-%H:%M:%S') #we don't want milli-second
+    timezone = pytz.timezone("UTC")
+    time = timezone.localize(time)
+    local_time = time.astimezone()
+    return local_time    
+
+#TO DO - to test this function
+def get_loaded_packages():
+    """Returns all the packages/libraries that are currently imported by the user
+    """
+    return [
+        p[0]
+        for p in locals().items()
+        if inspect.ismodule(p[1]) and not p[0].startswith('__')
+    ]
+    
+def get_hash(s):
+    """Gets a unique represetation of a string
+    
+    Parameters
+    ----------
+    s : string
+
+    Returns
+    -------
+    string :
+        the SHA256 hash of the string
+    
+    """
+    hs = hashlib.sha256(s.encode('utf-8')).hexdigest()
+
+def upload_file_to_s3(filename, bucket):
+    """Uploads file to the S3 bucket
+
+    Parameters
+    ----------
+    filename: string
+        Is the local path to the file to upload
+    bucket: string
+        Is the S3 bucket to which to upload the file to
+
+    Returns
+    -------
+    boolean: True if file was uploaded, else False
+    """
+
+    #
+    key = os.path.basename(filename)
+
+    # upload the file
+    try:
+        reponse = s3_client.upload_file(filename, bucket)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+def load_toml(path):
+    # path --> "file://.banyan/banyanconfig.toml"
+    # path[2:], path[4:8], path[:9]
+    if path.startswith('file://'):
+        toml.loads(path[8:])
+    
+    elif path.startswith('s3://'):
+        raise Exception("S3 path not currently supported")
+
+    elif (path.startswith('http://')) or (path.startswith('https://')):
+        r = (urllib3.PooManager().request('GET', path)).data #downloads the data from the internet into a toml-fomatted string
+        data = toml.loads(r.decode("utf-8")#loads the toml-formatted string 
