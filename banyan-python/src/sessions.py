@@ -9,7 +9,8 @@ from clusters import (
     get_cluster_s3_bucket_name, 
     wait_for_cluster
 )
-from jobs import get_job_id
+from config import configure
+#from jobs import get_job_id
 from session import Session
 from utils import (
     send_request_get_response,
@@ -23,7 +24,7 @@ from utils import (
 sessions = {}
 current_session_id = None
 
-def set_session(session_id:str):
+def set_session(session_id:str, *args, **kwargs):
     """Sets the session ID.
 
     Parameters
@@ -31,10 +32,13 @@ def set_session(session_id:str):
     session_id : string
         Session ID to use
     """ 
+    
+    configure(args, kwargs)
+    
     global current_session_id
     current_session_id = session_id
 
-def get_session_id():
+def get_session_id(*args, **kwargs):
     """Returns the value of the global variable set to the current session ID.
 
     Returns
@@ -42,10 +46,13 @@ def get_session_id():
     string
         Current session ID
     """
+    
+    configure(args, kwargs)
+    
     global current_session_id
     return current_session_id
 
-def get_session(session_id = None):
+def get_session(session_id = None, *args, **kwargs):
     """Get information about the current session.
 
     Parameter
@@ -63,6 +70,9 @@ def get_session(session_id = None):
         Exception if the session ID is for a session that wasn't created by this
         process or has failed
     """
+    
+    configure(args, kwargs)
+    
     if session_id is None:
         session_id = get_session_id()
     global sessions # an empty dictionary that will get filled up with mappings from session_id ->instances of the class Session
@@ -70,7 +80,7 @@ def get_session(session_id = None):
         raise Exception(f"The selected job with ID {session_id} does not have any information; if it was created by this process, it has either failed or been destroyed.")
     return sessions[session_id]
 
-def get_cluster_name():
+def get_cluster_name(*args, **kwargs):
     """Gets the name of the cluster that the current session is running on.
 
     Returns
@@ -78,9 +88,12 @@ def get_cluster_name():
     string
         Name of the cluster that the current session is running on.
     """
+    
+    configure(args, kwargs)
+    
     return get_session().cluster_name
 
-def end_session(session_id = None, failed = False, release_resources_now = False, release_resources_after = None):
+def end_session(session_id = None, failed = False, release_resources_now = False, release_resources_after = None, *args, **kwargs):
     """Ends a session given the session_id.
 
     Parameters
@@ -100,6 +113,9 @@ def end_session(session_id = None, failed = False, release_resources_now = False
     String
         session ID of the session that was ended
     """
+    
+    configure(args, kwargs)
+    
     if session_id is None:
         session_id = get_session_id()
    
@@ -120,7 +136,7 @@ def end_session(session_id = None, failed = False, release_resources_now = False
     del sessions[session_id]
     return session_id
  
-def end_all_sessions(cluster_name, release_resources_now = False, release_resources_after = None):
+def end_all_sessions(cluster_name, release_resources_now = False, release_resources_after = None, *args, **kwargs):
     """End all running sessions for a given cluster.
     
     Parameters
@@ -135,11 +151,14 @@ def end_all_sessions(cluster_name, release_resources_now = False, release_resour
     release_resources_after: int
         The number of minutes after which to release underlying resources
     """
+    
+    configure(args, kwargs)
+    
     sessions = get_sessions(cluster_name, status = ['creating', 'running'])
     for (session_id, session) in sessions.items():
         end_session(session_id, release_resources_now, release_resources_after)
 
-def get_sessions(cluster_name = None, status = None):
+def get_sessions(cluster_name = None, status = None, *args, **kwargs):
     """Gets information about all the sessions for the user. Optionally can filter
     by cluster name and status. 
         
@@ -155,6 +174,9 @@ def get_sessions(cluster_name = None, status = None):
     Dictionary
         Mappings from session ID to another dictionary containing information about the session
     """
+    
+    configure(args, kwargs)
+    
     filters = {}
     if cluster_name is not None:
         filters['cluster_name'] = cluster_name #mapping from key 'cluster_name' -> actual value of the parameter cluster_name
@@ -186,7 +208,7 @@ def get_sessions(cluster_name = None, status = None):
         sessions[id]['start_time'] = parse_time(sessions[id]['start_time'])
     return sessions
 
-def get_running_sessions():
+def get_running_sessions(*args, **kwargs):
     """Gets info about all sessions that are currently running 
     
     Returns
@@ -194,9 +216,12 @@ def get_running_sessions():
     Dictionary
         Mappings from session ID to another dictionary containing information about sessions that are running
     """
+    
+    configure(args, kwargs)
+    
     return get_sessions(status = 'running')
 
-def get_session_status(session_id = None):
+def get_session_status(session_id = None, *args, **kwargs):
     """Get the status of the session with the given session ID or current session
     if nothing is provided.
     
@@ -211,6 +236,9 @@ def get_session_status(session_id = None):
     string
         Status of the session. If the status is 'failed', the 'status_explanation' is printed 
     """
+
+    configure(args, kwargs)
+
     if session_id is None:
         session_id = get_session_id()
     filters = {'session_id':session_id} #filters is a dictionary 
@@ -245,7 +273,7 @@ def get_session_status(session_id = None):
 #>>> d
 #{500: 'hello', 50: 'hello th', 100: 'he'}
 
-def download_session_logs(session_id, cluster_name, filename = None):
+def download_session_logs(session_id, cluster_name, filename = None, *args, **kwargs):
     """Downloads the logs from Amazon S3 for a particular session to a local file
     
     Parameters
@@ -257,6 +285,9 @@ def download_session_logs(session_id, cluster_name, filename = None):
     fileneame : string and defaults to nothing
         Path to the file on the local computer to which to download to
     """
+
+    configure(args, kwargs)
+
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = f"banyan-log-for-session-{session_id}" #This creates a string with the {session_id} replaced with the value of the job_id
     if filename is None: # if fileneame is not specified
@@ -264,7 +295,7 @@ def download_session_logs(session_id, cluster_name, filename = None):
     s3 = boto3.client('s3')
     s3.download_file(s3_bucket_name, log_file_name, filename)
 
-def wait_for_session(session_id = None):
+def wait_for_session(session_id = None, *args, **kwargs):
     """Implements an algorithm to repeatedly get the session status and then wait for a 
     period of time
     
@@ -278,6 +309,9 @@ def wait_for_session(session_id = None):
     ------
     Raises Exception if session fails    
     """
+
+    configure(args, kwargs)
+
     if session_id is None:
         session_id = get_session_id()
     session_status = get_session_status (session_id)
@@ -296,9 +330,12 @@ def wait_for_session(session_id = None):
     else:
         raise Exception(f"Unknown session status {session_status} is ready")
 
-def with_session(f, **kwargs):
+def with_session(f, *args, **kwargs):
     """
     """
+    
+    configure(args, kwargs)
+
     use_exising_session = 'session' in kwargs.keys()
     end_session_on_error = kwargs.get('end_on_session_error', True)
     end_session_on_exit = kwargs.get('end_session_on_exit', True)
@@ -332,7 +369,8 @@ def start_session(
     force_install = False,
     estimate_available_memory = True,
     nowait = False,
-    email_when_ready = None  
+    email_when_ready = None,
+    *args, **kwargs  
 ):
     """
     Starts a new session.
@@ -341,6 +379,9 @@ def start_session(
     ----------
 
     """ 
+    
+    configure(args, kwargs)
+
     if sample_rate is None:
         sample_rate = nworkers
     
@@ -389,7 +430,7 @@ def start_session(
         'reuse_resources': not force_update_files,
         'estimate_available_memory': estimate_available_memory    
     }
-    
+   
     if session_name is None:
         session_configuration['session_name'] = session_name
     
