@@ -1,6 +1,8 @@
 import code
 import logging
 import os
+
+from pytz import NonExistentTimeError
 import boto3
 import time
 
@@ -359,7 +361,7 @@ def start_session(
     using_modules = None,
     # pip_requirements_file = None, # paths to a requirements.txt file that contains packages to be installed with pip
     # conda_environment_file = None, # paths to environment.yml file that contains packages to be installed with conda
-    poetry_pyproject_file = None, # a pyproject.toml file containing information about a poetry environment
+    project_dir = None, # a pyproject.toml file containing information about a poetry environment
     url = None,
     branch = None,
     directory = None,
@@ -370,7 +372,7 @@ def start_session(
     estimate_available_memory = True,
     nowait = False,
     email_when_ready = None,
-    *args, **kwargs  
+    *args, **kwargs,  
 ):
     """
     Starts a new session.
@@ -397,6 +399,12 @@ def start_session(
     if dev_paths is None:
         dev_paths = []
     
+    if project_dir is None:
+        project_dir = os.getcwd() #gets teh current working directory
+        
+    poetry_pyproject_file = os.path.join(project_dir, "pyproject.toml")
+    poetry_lock_file = os.path.join(project_dir, "poetry.lock")
+
     global sessions
     global current_session_id
 
@@ -412,7 +420,7 @@ def start_session(
         else:
             cluster_name = list(running_clusters.keys())[0]
 
-    python_version = get_python_version()
+    version = get_python_version()
     
     session_configuration = {
         'cluster_name': cluster_name,
@@ -421,14 +429,15 @@ def start_session(
         'return_logs': print_logs,
         'store_logs_in_s3': store_logs_in_s3,
         'store_logs_on_cluster': store_logs_on_cluster,
-        'python_version': python_version,
+        'version': version,
         # ENV is a dictionary in Julia that contains environment variables
         # To get the value of an environment variable in python (os)
         'benchmark': os.environ.get('BANYAN_BENCHMARK', '0') == '1', #comparison
         'main_modules': get_loaded_packages(),
         'using_modules': using_modules,
         'reuse_resources': not force_update_files,
-        'estimate_available_memory': estimate_available_memory    
+        'estimate_available_memory': estimate_available_memory,    
+        'language' : 'py'
     }
    
     if session_name is None:
@@ -443,14 +452,40 @@ def start_session(
     # If a url is not provided, then use the local environment
     if url is None:
         #TO DO 
-        if (poetry_pyproject_file is not None) and (os.path.exists(url)):
-            upload_file_to_s3(poetry_pyproject_file, s3_bucket_name)
+        # There are two files we need: pyproject.toml and project.lock
+        # Check if the pyproject.toml exists
+        if os.path.exists(poetry_pyproject_file):
+            # Check if the project.lock exists
+            if os.path.exists(poetry_lock_file):
+                # Read in the poetry.lock
+                with open(poetry_lock_file) as f:
+                    poetry_lock_file_contents = f.read()
+            else:
+                # If it doesn't exist - that's fine..
+                poetry_lock_file_contents = ""
+            # Read in the pyproject.toml
             with open(poetry_pyproject_file) as f:
                 file_contents = f.read()
-            environment_hash = get_hash(file_contents)
+
+            # At this point, both files have been read in so we go ahead and
+            # get the hash of them concatenated
+            environment_hash = get_hash(poetry_lock_file_contents + file_contents)
             environment_info['environment_hash'] = environment_hash
+
+            # Upload the pyproject.toml file to S3
+            object_name = environment_hash + '/pyproject.toml'
+            upload_file_to_s3(poetry_pyproject_file, s3_bucket_name, object_name)
+            environment_info['pyproject_toml'] = object_name
+
+            if poetry_lock_file_contents != "":
+                object_name = environment_hash + '/poetry.lock'
+                upload_file_to_s3(poetry_lock_file, s3_bucket_name, object_name)
+                environment_info['poetry_lock'] = object_name
+                
         else:
+            # It has to exist!
             raise Exception("poetry_pyproject_file does not exist")
+
     else:
     # Otherwise, use url and optionally a particular branch
         environment_info['url'] = url
@@ -476,9 +511,9 @@ def start_session(
     # Upload files to S3      
     #TO DO upload files and encode files to S3
     for f in files:
-        upload_file_to_s3(f, s3_bucket_name)
+        upload_file_to_s3(f.replace('file://', ''), s3_bucket_name)
     for f in code_files:
-        upload_file_to_s3(f, s3_bucket_name)
+        upload_file_to_s3(f.replace('file://', ''), s3_bucket_name)
     # TO DO optimize by not uploading if the file exists in S3    
 
     # Example of f might be "C:/Users/Melany Winston/.../src/clusters.py" --> "cluster.py" extracting out cluster.py
@@ -491,6 +526,7 @@ def start_session(
 
     pf_dispatch_table_loaded = {} #load_toml(pf_dispatch_table)
     session_configuration['pf_dispatch_table'] = pf_dispatch_table_loaded
+    session_configuration['language'] = 'py' 
 
     # Start the session
     response = send_request_get_response('start_session', session_configuration)
@@ -507,3 +543,72 @@ def start_session(
         wait_for_session(session_id)
 
     return session_id
+
+def run_session(
+    cluster_name = None,
+    nworkers = 16,
+    release_resources_after = 20,
+    print_logs = False,
+    store_logs_in_s3 = True,
+    store_logs_on_cluster = False,
+    sample_rate = None,
+    session_name = None,
+    files = None, 
+    code_files = None,
+    force_update_files = True,
+    pf_dispatch_table = None,
+    using_modules = None, 
+    url = None, 
+    branch = None,
+    directory = None,
+    dev_paths = None,
+    force_clone = False,
+    force_pull = False,
+    force_install = False,
+    estimate_available_memory = True,
+    email_when_ready = None,
+    *args, **kwargs 
+):
+    """Starts a session, runs some code files and the sessions ends after that.  
+    """
+
+    if sample_rate is None:
+        sample_rate = nworkers
+
+    
+    if files is None:
+        files = []
+
+    if code_files is None:
+        code_files = []
+    
+    if using_modules is None:
+        using_modules = []
+
+    if dev_paths is None:
+        dev_paths = []
+    
+    try:
+        start_session(cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
+                    print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
+                    sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
+                    pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
+                    directory = directory, dev_paths = dev_paths, force_clone = force_clone, force_pull = force_pull, force_install = force_install, 
+                    estimate_available_memory = estimate_available_memory, nowait = False, email_when_ready = email_when_ready, for_running = True)
+    except :
+        try:
+            session_id = get_session_id()
+        except:
+            session_id = None    
+        if session_id is not None:
+            end_session(get_session(), failed = True)
+        raise
+    finally:
+        try:
+            session_id = get_session_id()
+        except:
+            session_id = None
+        if session_id is not None:
+            end_session(get_session_id(), failed = False)
+    
+

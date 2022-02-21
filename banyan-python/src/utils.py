@@ -113,7 +113,7 @@ def get_hash(s):
     """
     hs = hashlib.sha256(s.encode('utf-8')).hexdigest()
 
-def upload_file_to_s3(filename, bucket):
+def upload_file_to_s3(filename, bucket, object_name = None):
     """Uploads file to the S3 bucket
 
     Parameters
@@ -128,12 +128,12 @@ def upload_file_to_s3(filename, bucket):
     boolean: True if file was uploaded, else False
     """
 
-    #
+    #if S3 object_name not specified, use filename
     key = os.path.basename(filename)
 
     # upload the file
     try:
-        reponse = s3_client.upload_file(filename, bucket)
+        reponse = s3_client.upload_file(filename, bucket, object_name if object_name is not None else key)
     except ClientError as e:
         logging.error(e)
         return False
