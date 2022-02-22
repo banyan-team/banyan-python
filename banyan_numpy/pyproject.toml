@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "banyan-numpy"
+name = "banyan_numpy"
 version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-banyan-python = { path = "../banyan-python/", develop = false }
+banyan = { path = "../banyan/", develop = false }
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
