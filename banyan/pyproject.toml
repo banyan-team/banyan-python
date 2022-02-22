@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "banyan-python"
+name = "banyan"
 version = "0.1.0"
 description = "Massively parallel cloud computing with popular Python libraries for analytics, processing, and simulation! "
 authors = ["Banyan Computing <support@banyancomputing.com>"]
