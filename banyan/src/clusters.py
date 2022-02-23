@@ -32,6 +32,7 @@ def create_cluster(
     vpc_id=None,
     subnet_id=None,
     nowait=False,
+    ec2_key_pair = None,
     **kwargs,
 ):
     """Creates a new cluster or re-creates a previously destroyed cluster.
@@ -99,6 +100,8 @@ def create_cluster(
         cluster_config["vpc_id"] = vpc_id
     if subnet_id is not None:
         cluster_config["subnet_id"] = subnet_id
+    if not ec2_key_pair == None:
+        cluster_config["ec2_key_pair"] = ec2_key_pair
 
     logging.info(f"Started creating cluster named {name}")
 

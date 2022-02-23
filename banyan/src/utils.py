@@ -55,6 +55,8 @@ def send_request_get_response(endpoint: str, content:dict):
         raise Exception(data)
     elif resp.status == 502:
         raise Exception("Sorry there has been an error. Please contact support.")
+
+    content["debug"] = logging.getLogger().isEnabledFor(logging.DEBUG)
     return data
 
 def is_debug_on():
