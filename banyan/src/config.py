@@ -41,6 +41,8 @@ def write_config(banyanconfig_path:Optional[str] = None):
         toml.dump(banyanconfig, f)
     return banyanconfig
 
+banyan_config = {}
+
 def configure(
         user_id:Optional[str]=None, 
         api_key:Optional[str]=None, 
@@ -59,45 +61,67 @@ def configure(
         file to save configurations to
         if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
     """
-    global banyanconfig
-    loaded_config = load_config(banyanconfig_path)
-    config_change = False
-
-    # Find user_id
-    if user_id is None:
-        user_id_env = os.getenv("BANYAN_USER_ID", default = None)
-        if user_id_env is None and "user_id" in loaded_config:
-            user_id = loaded_config["user_id"]
-        else:
-            user_id = user_id_env
-    if "user_id" not in loaded_config or user_id != loaded_config["user_id"]:
-        config_change = True
-    banyanconfig["user_id"] = user_id
-
-    # Find api_key
-    if api_key is None:
-        api_key_env = os.getenv("BANYAN_API_KEY", default = None)
-        if api_key_env is None and "api_key" in loaded_config:
-            api_key = loaded_config["api_key"]
-        else:
-            api_key = api_key_env
-    if "api_key" not in loaded_config or api_key != loaded_config["api_key"]:
-        config_change = True
-    banyanconfig["api_key"] = api_key
-
-    # Find ec2_key_pair_name
-    if ec2_key_pair_name is None:
-        ec2_key_pair_name_env = os.getenv("EC2_KEY_PAIR_NAME", default = None)
-        if ec2_key_pair_name_env is None and "ec2_key_pair_name" in loaded_config:
-            ec2_key_pair_name = loaded_config["ec2_key_pair_name"]
-        else:
-            ec2_key_pair_name = ec2_key_pair_name_env
-    if "ec2_key_pair_name" not in loaded_config or ec2_key_pair_name != loaded_config["ec2_key_pair_name"]:
-        config_change = True
-    banyanconfig["ec2_key_pair_name"] = ec2_key_pair_name
-
-    # Update toml file, if needed
-    if config_change:
-        write_config(banyanconfig_path)
-    return banyanconfig
     
+    load_config(banyanconfig_path)
+    global banyan_config
+
+    # Check environment variables
+    user_id_env = os.getenv("BANYAN_USER_ID", default = None)
+    if user_id == None and not user_id_env == None:
+        user_id = user_id_env
+
+    api_key_env = os.getenv("BANYAN_API_KEY", default = None)
+    if api_key == None and not api_key_env == None:
+        api_key = api_key_env
+
+    ec2_env = os.getenv("BANYAN_EC2_KEY_PAIR_NAME")
+    if ec2_key_pair_name == None and not ec2_env == None:
+        ec2_key_pair_name = ec2_env  
+
+   # Check banyanconfig file
+    if user_id == None and 'banyan' in banyan_config and "user_id" in banyan_config["banyan"]:
+        user_id = banyan_config["banyan"]["user_id"]
+    if api_key == None and "banyan" in banyan_config and "api_key" in banyan_config["banyan"]:
+        api_key = banyan_config["banyan"]["api_key"]
+
+
+    # Initialize
+    is_modified = False
+    is_valid = True
+
+    # Ensure a configuration has been created or can be created. Otherwise,
+    # return nothing
+    if banyan_config == None or banyan_config == {}:
+        if not user_id == None and not api_key == None:
+            banyan_config = {
+                "banyan":
+                    {"user_id" : user_id, "api_key" : api_key},
+                "aws" : {}
+            }
+            is_modified = True
+        else:
+            raise("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
+        
+    # Check for changes in required
+    if not user_id == None and not user_id == banyan_config["banyan"]["user_id"]:
+        banyan_config["banyan"]["user_id"] = user_id
+        is_modified = True
+    if not api_key == None and not api_key == banyan_config["banyan"]["api_key"]:
+        banyan_config["banyan"]["api_key"] = api_key
+        is_modified = True
+    
+
+    # Check for changes in other args
+
+    # aws.ec2_key_pair_name
+    if ec2_key_pair_name == None:
+        del banyan_config["aws"]["ec2_key_pair_name"]
+    elif (ec2_key_pair_name != 0) and (not "ec2_key_pair_name" in banyan_config["aws"] or not ec2_key_pair_name == banyan_config["aws"]["ec2_key_pair_name"]):
+        banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
+        is_modified = True
+
+    # Update config file if it was modified
+    if is_modified:
+        write_config(banyanconfig_path)
+
+    return banyan_config

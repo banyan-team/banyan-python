@@ -1,8 +1,9 @@
-from config import configure
-from imports import *
-from sessions import get_cluster_name
-from utils import send_request_get_response, get_aws_config_region
+from .config import configure
+from .imports import *
+from .session import get_cluster_name
+from .utils import send_request_get_response, get_aws_config_region
 
+import urllib
 
 # __all__ = [
 #     "create_cluster",
@@ -159,18 +160,16 @@ def get_clusters(cluster_name=None, **kwargs):
     filters = dict()
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name
-    response = send_request_get_response("describe_clusters", Dict[str, Any](filters=filters))
-    clusters_dict = Dict(
-        {
-            name:Cluster(
-                name,
-                parsestatus(c["status"]),
-                c["status_explanation"] if "status_explanation" in c else "",
-                c["num_sessions"],
-                c["s3_read_write_resource"],
-            ) for (name, c) in response["clusters"]
-        }
-    )
+    response = send_request_get_response("describe_clusters", {"filters":filters})
+    clusters_dict = {
+        name : Cluster(
+            name,
+            parsestatus(c["status"]),
+            c["status_explanation"] if "status_explanation" in c else "",
+            c["s3_read_write_resource"],
+        ) for (name, c) in response["clusters"]
+    }
+    
 
     # Cache info
     global clusters

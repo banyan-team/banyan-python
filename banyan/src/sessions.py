@@ -1,20 +1,21 @@
 import code
 import logging
 import os
-
-from pytz import NonExistentTimeError
 import boto3
 import time
 
-from clusters import (
+from pytz import NonExistentTimeError
+from .session import get_session_id, set_session, sessions, current_session_id, get_session
+
+from .clusters import (
     get_running_clusters, 
     get_cluster_s3_bucket_name, 
     wait_for_cluster
 )
-from config import configure
+from .config import configure
 #from jobs import get_job_id
-from session import Session
-from utils import (
+from .session import Session
+from .utils import (
     send_request_get_response,
     get_loaded_packages,
     get_python_version,
@@ -23,77 +24,7 @@ from utils import (
     load_toml
 )
 
-sessions = {}
-current_session_id = None
 
-def set_session(session_id:str, *args, **kwargs):
-    """Sets the session ID.
-
-    Parameters
-    ----------
-    session_id : string
-        Session ID to use
-    """ 
-    
-    configure(args, kwargs)
-    
-    global current_session_id
-    current_session_id = session_id
-
-def get_session_id(*args, **kwargs):
-    """Returns the value of the global variable set to the current session ID.
-
-    Returns
-    -------
-    string
-        Current session ID
-    """
-    
-    configure(args, kwargs)
-    
-    global current_session_id
-    return current_session_id
-
-def get_session(session_id = None, *args, **kwargs):
-    """Get information about the current session.
-
-    Parameter
-    --------
-    session_id : string
-        Session ID to get information for
-
-    Returns
-    -------
-    Session
-        Information about the given session ID
-
-    Raises
-    ------
-        Exception if the session ID is for a session that wasn't created by this
-        process or has failed
-    """
-    
-    configure(args, kwargs)
-    
-    if session_id is None:
-        session_id = get_session_id()
-    global sessions # an empty dictionary that will get filled up with mappings from session_id ->instances of the class Session
-    if (session_id not in sessions):
-        raise Exception(f"The selected job with ID {session_id} does not have any information; if it was created by this process, it has either failed or been destroyed.")
-    return sessions[session_id]
-
-def get_cluster_name(*args, **kwargs):
-    """Gets the name of the cluster that the current session is running on.
-
-    Returns
-    -------
-    string
-        Name of the cluster that the current session is running on.
-    """
-    
-    configure(args, kwargs)
-    
-    return get_session().cluster_name
 
 def end_session(session_id = None, failed = False, release_resources_now = False, release_resources_after = None, *args, **kwargs):
     """Ends a session given the session_id.
@@ -120,9 +51,6 @@ def end_session(session_id = None, failed = False, release_resources_now = False
     
     if session_id is None:
         session_id = get_session_id()
-   
-    global sessions 
-    global current_session_id
 
     #Ending session with ID session_ID
     request_params = {'session_id': session_id, 'failed': failed , 'release_resources_now': release_resources_now}
@@ -318,16 +246,16 @@ def wait_for_session(session_id = None, *args, **kwargs):
         session_id = get_session_id()
     session_status = get_session_status (session_id)
     t = 5
-    while session_status is 'creating':
+    while session_status == 'creating':
         time.sleep(t)
         if t < 80:
             t *= 2
         session_status = get_session_status(session_id)
-    if session_status is 'running':
+    if session_status == 'running':
         logging.info(f"session with ID {session_id} is ready")
-    elif session_status is 'completed':
+    elif session_status == 'completed':
         raise Exception(f"session with ID {session_id} has already completed")
-    elif session_status is 'failed':
+    elif session_status == 'failed':
         raise Exception(f"session with ID {session_id} has failed")
     else:
         raise Exception(f"Unknown session status {session_status} is ready")
@@ -405,9 +333,6 @@ def start_session(
     poetry_pyproject_file = os.path.join(project_dir, "pyproject.toml")
     poetry_lock_file = os.path.join(project_dir, "poetry.lock")
 
-    global sessions
-    global current_session_id
-
     # Configure
     #TO DO
 
@@ -415,7 +340,7 @@ def start_session(
     if cluster_name is None:
         # running_clusters is dictionary
         running_clusters = get_running_clusters()
-        if len(running_clusters) is 0:
+        if len(running_clusters) == 0:
             raise Exception("Failed to start session: you don't have any clusters created")
         else:
             cluster_name = list(running_clusters.keys())[0]
@@ -534,8 +459,7 @@ def start_session(
     resource_id = response['resource_id']
 
 # Store in global state
-    current_session_id = session_id
-    sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
+    set_session(current_session_id, Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate))
 
     wait_for_cluster(cluster_name)
 

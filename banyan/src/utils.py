@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from operator import truediv
 import boto3
 import hashlib
@@ -12,7 +12,7 @@ import toml
 import urllib3
 
 from botocore.exceptions import ClientError
-from config import load_config
+from .config import load_config
 from datetime import datetime
 from typing import Dict
 
@@ -150,4 +150,4 @@ def load_toml(path):
 
     elif (path.startswith('http://')) or (path.startswith('https://')):
         r = (urllib3.PooManager().request('GET', path)).data #downloads the data from the internet into a toml-fomatted string
-        data = toml.loads(r.decode("utf-8")#loads the toml-formatted string 
+        data = toml.loads(r.decode("utf-8"))#loads the toml-formatted string 

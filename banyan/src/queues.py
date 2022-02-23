@@ -1,8 +1,8 @@
 import boto3
 import json
 
-from id import generate_message_id, ResourceId 
-from sessions import get_session, get_session_id, end_session
+from .id import generate_message_id, ResourceId 
+from .sessions import get_session, get_session_id, end_session
 
 sqs = boto3.client('sqs') 
 
@@ -94,14 +94,15 @@ def send_message(queue_name, message):
 
 def send_to_client(value_id, value):
     send_message(
-        get_gather_queue()
+        get_gather_queue(),
         json.dumps(
             {
                 "kind":"GATHER",
                 "value_id":value_id,
-                "contents":to_jl_value_contents(value)
+                "contents":None #to_jl_value_contents(value) TODO: Implement
             }
         )
+    )
 
 ###########################
 # GET MESSAGES FROM QUEUE #
