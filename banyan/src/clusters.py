@@ -164,19 +164,27 @@ def get_clusters(cluster_name=None, **kwargs):
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name
     response = send_request_get_response("describe_clusters", {"filters":filters})
+    print("typ")
+    print(type(response))
+    for (name, c) in response["clusters"].items():
+        print()
+        print('cccccccccc')   
+        print(c)
+        print(type(c))
+        print()
     clusters_dict = {
         name : Cluster(
             name,
             parsestatus(c["status"]),
             c["status_explanation"] if "status_explanation" in c else "",
             c["s3_read_write_resource"],
-        ) for (name, c) in response["clusters"]
+        ) for (name, c) in response["clusters"].items()
     }
     
 
     # Cache info
     global clusters
-    for (name, c) in clusters_dict:
+    for (name, c) in clusters_dict.items():
         clusters[name] = c
     
     return clusters_dict

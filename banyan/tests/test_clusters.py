@@ -22,5 +22,5 @@ def test_create_run_destroy():
 
 def test_get_clusters():
     #  cluster_name = os.environ['BANYAN_CLUSTER_NAME']
-     get_clusters()   
+    print(get_clusters())   
 

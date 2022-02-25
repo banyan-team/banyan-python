@@ -3,6 +3,7 @@ from operator import truediv
 import boto3
 import hashlib
 import inspect
+import json
 import logging
 import os
 import platform
@@ -25,24 +26,51 @@ def get_aws_config_region():
     # c = Config()
     # return c.region_name
 
-
-def send_request_get_response(endpoint: str, content:dict):
+def method_to_string(method):
+    if method == "create_cluster":
+        return "create-cluster"
+    elif method == "destroy_cluster":
+        return "destroy-cluster"
+    elif method == "describe_clusters":
+        return "describe-clusters"
+    elif method == "start_session":
+        return "start-session"
+    elif method == "end_session":
+        return "end-session"
+    elif method == "describe_sessions":
+        return "describe-sessions"
+    elif method == "evaluate":
+        return "evaluate"
+    elif method == "update_cluster":
+        return "update-cluster"
+    elif method == "set_cluster_ready":
+        return "set-cluster-ready"
+    
+def send_request_get_response(method: str, content: dict):
     configuration = load_config()
+    print("configuration: ")
+    print(f"{configuration}")
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
-    if os.get_env("BANYAN_API_ENDPOINT", default=None) is None:
+    if os.getenv("BANYAN_API_ENDPOINT", default=None) is None:
         banyan_api_endpoint = "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/"
     else:
-        banyan_api_endpoint = os.get_env("BANYAN_API_ENDPOINT", default=None)
-    url = str(banyan_api_endpoint, endpoint)
-    # content["debug"] = is_debug_on()
+        banyan_api_endpoint = os.getenv("BANYAN_API_ENDPOINT", default=None)
+    print("end")
+    print(banyan_api_endpoint)
+    url = (banyan_api_endpoint) + method_to_string(method)
+    print(url)
+    content["debug"] = True
+    print(content)
     headers = {
         "content-type": "application/json",
         "Username-APIKey": f"{user_id}-{api_key}"
     }
-    resp = requests.post(url=url, data=content, headers=headers)
-    data = resp.text
-
+    print(headers)
+    resp = requests.post(url=url, json=content, headers=headers)
+    data = json.loads(resp.text)
+    print(f"{resp.text}")
+    print(f"{resp.encoding}")
     if resp.status_code == 403:
         raise Exception("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials.")
     elif resp.status_code == 504:
@@ -53,10 +81,8 @@ def send_request_get_response(endpoint: str, content:dict):
         return None
     elif resp.status_code == 500 or resp.status_code == 504:
         raise Exception(data)
-    elif resp.status == 502:
+    elif resp.status_code == 502:
         raise Exception("Sorry there has been an error. Please contact support.")
-
-    content["debug"] = logging.getLogger().isEnabledFor(logging.DEBUG)
     return data
 
 def is_debug_on():
@@ -145,7 +171,7 @@ def load_toml(path):
     # path --> "file://.banyan/banyanconfig.toml"
     # path[2:], path[4:8], path[:9]
     if path.startswith('file://'):
-        toml.loads(path[8:])
+        toml.loads(path[7:-1])
     
     elif path.startswith('s3://'):
         raise Exception("S3 path not currently supported")

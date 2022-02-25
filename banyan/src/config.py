@@ -4,8 +4,10 @@ loading configurations.
 """
 
 from src.imports import *
+from copy import deepcopy
 
-banyanconfig = dict() # Global variable representing configuration
+banyan_config = dict() # Global variable representing configuration
+print(f"{banyan_config}")
 
 def load_config(banyanconfig_path:Optional[str] = None):
     """ Loads configuration from given file
@@ -15,13 +17,16 @@ def load_config(banyanconfig_path:Optional[str] = None):
         filepath to Banyan configuration file
         if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
     """
-    global banyanconfig 
-    if banyanconfig_path is None:
-        banyanconfig_path = os.path.join(os.path.expanduser('~'), ".banyan/banyanconfig.toml")
-    if not os.path.exists(banyanconfig_path):
-        return dict()
-    banyanconfig = toml.load(banyanconfig_path)
-    return banyanconfig
+    global banyan_config 
+
+    if banyan_config is None:
+        if banyanconfig_path is None:
+            banyanconfig_path = os.path.join(os.path.expanduser('~'), ".banyan/banyanconfig.toml")
+            print("path:")
+            print(f"{banyanconfig_path}")
+        if os.path.exists(banyanconfig_path):
+            banyan_config = toml.load(banyanconfig_path)
+    return banyan_config
 
 def write_config(banyanconfig_path:Optional[str] = None):
     """ Writes configuration to given file
@@ -31,15 +36,15 @@ def write_config(banyanconfig_path:Optional[str] = None):
         filepath to Banyan configuration file
         if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
     """
-    global banyanconfig 
+    global banyan_config 
     if banyanconfig_path is None:
         banyanconfig_path = os.path.join(os.path.expanduser('~'), ".banyan/banyanconfig.toml")
     
     os.makedirs(os.path.join(os.path.expanduser('~'), ".banyan/"), exist_ok=True)
     
     with open(banyanconfig_path, "w") as f:
-        toml.dump(banyanconfig, f)
-    return banyanconfig
+        toml.dump(banyan_config, f)
+    return banyan_config
 
 banyan_config = {}
 
@@ -62,37 +67,39 @@ def configure(
         if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
     """
     
-    load_config(banyanconfig_path)
+    c = load_config(banyanconfig_path)
     global banyan_config
+    banyan_config = c
 
     # Check environment variables
     user_id_env = os.getenv("BANYAN_USER_ID", default = None)
-    if user_id == None and not user_id_env == None:
+    if user_id is None and not user_id_env is None:
         user_id = user_id_env
 
     api_key_env = os.getenv("BANYAN_API_KEY", default = None)
-    if api_key == None and not api_key_env == None:
+    if api_key is None and not api_key_env is None:
         api_key = api_key_env
 
     ec2_env = os.getenv("BANYAN_EC2_KEY_PAIR_NAME")
-    if ec2_key_pair_name == None and not ec2_env == None:
+    if ec2_key_pair_name is None and not ec2_env == None:
         ec2_key_pair_name = ec2_env  
 
-   # Check banyanconfig file
-    if user_id == None and 'banyan' in banyan_config and "user_id" in banyan_config["banyan"]:
-        user_id = banyan_config["banyan"]["user_id"]
-    if api_key == None and "banyan" in banyan_config and "api_key" in banyan_config["banyan"]:
+   # Check banyan_config file
+    banyan_config_has_info = not (banyan_config is None or banyan_config == {})
+    if user_id is None and banyan_config_has_info and 'banyan' in banyan_config and 'user_id' in banyan_config['banyan']:
+        user_id = banyan_config['banyan']['user_id']
+    if api_key is None and banyan_config_has_info and 'banyan' in banyan_config and 'api_key' in banyan_config['banyan']:
         api_key = banyan_config["banyan"]["api_key"]
-
-
-    # Initialize
-    is_modified = False
-    is_valid = True
-
+    if ec2_key_pair_name is None and banyan_config_has_info and 'aws' in banyan_config and 'ec2_key_pair_name' in banyan_config["aws"]:
+        ec2_key_pair_name = banyan_config["aws"]["ec2_key_pair_name"]
+    
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
-    if banyan_config == None or banyan_config == {}:
-        if not user_id == None and not api_key == None:
+    existing_banyan_config = deepcopy(banyan_config)    
+    if banyan_config is None or banyan_config == {}:
+        print("hi!")
+        if not user_id is None and not api_key is None:
+            print("hello")
             banyan_config = {
                 "banyan":
                     {"user_id" : user_id, "api_key" : api_key},
@@ -100,28 +107,9 @@ def configure(
             }
             is_modified = True
         else:
-            raise("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
-        
-    # Check for changes in required
-    if not user_id == None and not user_id == banyan_config["banyan"]["user_id"]:
-        banyan_config["banyan"]["user_id"] = user_id
-        is_modified = True
-    if not api_key == None and not api_key == banyan_config["banyan"]["api_key"]:
-        banyan_config["banyan"]["api_key"] = api_key
-        is_modified = True
-    
-
-    # Check for changes in other args
-
-    # aws.ec2_key_pair_name
-    if ec2_key_pair_name == None:
-        del banyan_config["aws"]["ec2_key_pair_name"]
-    elif (ec2_key_pair_name != 0) and (not "ec2_key_pair_name" in banyan_config["aws"] or not ec2_key_pair_name == banyan_config["aws"]["ec2_key_pair_name"]):
-        banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
-        is_modified = True
-
-    # Update config file if it was modified
-    if is_modified:
+            raise Exception("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
+    if not existing_banyan_config == banyan_config:
         write_config(banyanconfig_path)
-
+    print("bnayan config")
+    print(banyan_config)
     return banyan_config

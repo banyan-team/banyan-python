@@ -47,7 +47,7 @@ def end_session(session_id = None, failed = False, release_resources_now = False
         session ID of the session that was ended
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     if session_id is None:
         session_id = get_session_id()
@@ -82,7 +82,7 @@ def end_all_sessions(cluster_name, release_resources_now = False, release_resour
         The number of minutes after which to release underlying resources
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     sessions = get_sessions(cluster_name, status = ['creating', 'running'])
     for (session_id, session) in sessions.items():
@@ -105,7 +105,7 @@ def get_sessions(cluster_name = None, status = None, *args, **kwargs):
         Mappings from session ID to another dictionary containing information about the session
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     filters = {}
     if cluster_name is not None:
@@ -147,7 +147,7 @@ def get_running_sessions(*args, **kwargs):
         Mappings from session ID to another dictionary containing information about sessions that are running
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     return get_sessions(status = 'running')
 
@@ -167,7 +167,7 @@ def get_session_status(session_id = None, *args, **kwargs):
         Status of the session. If the status is 'failed', the 'status_explanation' is printed 
     """
 
-    configure(args, kwargs)
+    configure(*args, **kwargs)
 
     if session_id is None:
         session_id = get_session_id()
@@ -216,7 +216,7 @@ def download_session_logs(session_id, cluster_name, filename = None, *args, **kw
         Path to the file on the local computer to which to download to
     """
 
-    configure(args, kwargs)
+    configure(*args, **kwargs)
 
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = f"banyan-log-for-session-{session_id}" #This creates a string with the {session_id} replaced with the value of the job_id
@@ -240,7 +240,7 @@ def wait_for_session(session_id = None, *args, **kwargs):
     Raises Exception if session fails    
     """
 
-    configure(args, kwargs)
+    configure(*args, **kwargs)
 
     if session_id is None:
         session_id = get_session_id()
@@ -264,7 +264,7 @@ def with_session(f, *args, **kwargs):
     """
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
 
     use_exising_session = 'session' in kwargs.keys()
     end_session_on_error = kwargs.get('end_on_session_error', True)
@@ -310,7 +310,7 @@ def start_session(
 
     """ 
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
 
     if sample_rate is None:
         sample_rate = nworkers

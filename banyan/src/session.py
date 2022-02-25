@@ -44,7 +44,7 @@ def set_session(session_id:str, session=None, *args, **kwargs):
         this session.
     """ 
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     global current_session_id
     current_session_id = session_id
@@ -62,9 +62,13 @@ def get_session_id(*args, **kwargs):
         Current session ID
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     global current_session_id
+    if current_session_id is None:
+        raise Exception(
+            "No session started or selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
+        )    
     return current_session_id
 
 def get_session(session_id = None, *args, **kwargs):
@@ -86,7 +90,7 @@ def get_session(session_id = None, *args, **kwargs):
         process or has failed
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     if session_id is None:
         session_id = get_session_id()
@@ -104,6 +108,6 @@ def get_cluster_name(*args, **kwargs):
         Name of the cluster that the current session is running on.
     """
     
-    configure(args, kwargs)
+    configure(*args, **kwargs)
     
     return get_session().cluster_name
