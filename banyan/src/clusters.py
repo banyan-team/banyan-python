@@ -55,18 +55,22 @@ def create_cluster(
 
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
+    print("one")
     if name in clusters_local:
+        print("two")
         if clusters_local[name].status == "terminated":
             logging.info(f"Started re-creating cluster named {name}")
             send_request_get_response(
                 "create_cluster",
-                Dict(cluster_name=name, recreate=True)
+                {"cluster_name":name, "recreate":True}
             )
+            print("three")
             if not nowait:
+                print("hiii!")
                 wait_for_cluster(name)
             return get_cluster(name)
         else:
-            logging.error(f"Cluster with name {name} already exists and its current status is {str(clusters_local[name].status)}") 
+            raise Exception(f"Cluster with name {name} already exists and its current status is {str(clusters_local[name].status)}") 
 
     # Construct arguments
     if s3_bucket_name is not None:
@@ -80,17 +84,17 @@ def create_cluster(
         logging.error(f"Bucket {s3_bucket_name} does not exist in connected AWS account") 
 
     # Construct cluster creation
-    cluster_config = Dict(
-        cluster_name = name,
-        instance_type = instance_type,
-        max_num_workers = max_num_workers,
-        initial_num_workers = initial_num_workers,
-        min_num_workers = min_num_workers,
-        aws_region = region,
-        s3_read_write_resource = s3_bucket_arn,
-        scaledown_time = scaledown_time,
-        recreate = False,
-    )
+    cluster_config = {
+        'cluster_name' : name,
+        'instance_type' : instance_type,
+        'max_num_workers' : max_num_workers,
+        'initial_num_workers' : initial_num_workers,
+        'min_num_workers' : min_num_workers,
+        'aws_region' : region,
+        's3_read_write_resource' : s3_bucket_arn,
+        'scaledown_time' : scaledown_time,
+        'recreate' : False,
+    }
 
     if "ec2_key_pair_name" in c["aws"]:
         cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
@@ -120,25 +124,25 @@ def create_cluster(
 def destroy_cluster(name: str, **kwargs):
     configure(**kwargs)
     logging.info(f"Destroying cluster named {name}")
-    send_request_get_response("destroy_cluster", Dict[str, Any](cluster_name = name))
+    send_request_get_response("destroy_cluster", {'cluster_name' : name})
 
 
 def delete_cluster(name: str, **kwargs):
     configure(**kwargs)
     logging.info(f"Deleting cluster named {name}")
-    send_request_get_response("destroy_cluster", Dict[str, Any](cluster_name = name, permanently_delete = True))
+    send_request_get_response("destroy_cluster", {'cluster_name' : name , 'permanently_delete' : True})
 
 
 def update_cluster(name: str, **kwargs):
     configure(**kwargs)
     logging.info(f"Updating cluster named {name}")
-    send_request_get_response("update_cluster", Dict[str, Any](cluster_name = name))
+    send_request_get_response("update_cluster", {'cluster_name' : name})
 
 
 def assert_cluster_is_ready(name: str, **kwargs):
     logging.info(f"Setting status of cluster named {name} to running") 
     configure(**kwargs)
-    send_request_get_response("set_cluster_ready", Dict[str, Any](cluster_name = name))
+    send_request_get_response("set_cluster_ready", {'cluster_name' : name})
 
 
 class Cluster:
@@ -160,18 +164,18 @@ def parsestatus(status: str):
 def get_clusters(cluster_name=None, **kwargs):
     logging.debug("Downloading description of clusters")
     configure(**kwargs)
-    filters = dict()
+    filters = {}
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name
     response = send_request_get_response("describe_clusters", {"filters":filters})
-    print("typ")
-    print(type(response))
-    for (name, c) in response["clusters"].items():
-        print()
-        print('cccccccccc')   
-        print(c)
-        print(type(c))
-        print()
+    # print("typ")
+    # print(type(response))
+    # for (name, c) in response["clusters"].items():
+    #     # print()
+    #     # print('cccccccccc')   
+    #     # print(c)
+    #     # print(type(c))
+    #     # print()
     clusters_dict = {
         name : Cluster(
             name,
@@ -222,20 +226,27 @@ def get_cluster(name: Optional[str]=None, **kwargs):
     # return c.status
 
 def get_running_clusters(*args, **kwargs):
-    return [entry for entry in get_clusters(*args, **kwargs) if entry[2].status == "running"]
+    return [entry for entry in get_clusters(*args, **kwargs).items() if entry[1].status == "running"]
 
 def get_cluster_status(name:str=None, **kwargs):
     if name is None:
         name = get_cluster_name()
     global clusters
+    print("outside if statement")
     if name in clusters:
+        print("if name in ")
         if clusters[name] == "failed":
+            print("failed! :((")
             logging.error(c.status_explanation)
             # TODO: should c be clusters[name]
 
-    c = get_cluster(name, **kwargs)[name]
+    c = get_cluster(name, **kwargs)
+    print("outside if statementv 2 ")
+    print(c)
+    print(c.status)
     if c.status == "failed":
-        logging.error(c.status_explanation)
+        print("ohh... " + str(c.status_explanation))
+        raise Exception(c.status_explanation)
     return c.status
 
 
@@ -246,15 +257,22 @@ def wait_for_cluster(name:str=None, **kwargs):
     t = 5
     p = progressbar.ProgressBar(max_value=progressbar.UnknownLength, widgets = [progressbar.DynamicMessage('status')])
     cluster_status = get_cluster_status(name, **kwargs)
+    print("cluster stauts: " + str(cluster_status))
     i = 0
+    print("outside the loop")
     while cluster_status == "creating" or cluster_status == "updating":
+        print("inside the loop")
+        print("cluster stauts2: " + str(cluster_status))
         # if p is None:
-        if cluster_status == "creating":
-            p.dynamic_message['status'] = f"Setting up cluster {name}"
-        else:
-            p.dynamic_message['status'] = f"Updating cluster {name}"
+        p.update(
+            i,
+            status=(
+                f"Setting up cluster {name}"
+                if cluster_status == "creating"
+                else f"Updating cluster {name}"
+            )
+        )
         time.sleep(t)
-        p.update(i)
         if t < 80:
             t *= 2
         cluster_status = get_cluster_status(name, **kwargs)
@@ -262,11 +280,11 @@ def wait_for_cluster(name:str=None, **kwargs):
     if cluster_status == "running":
         logging.info(f"Cluster {name} is ready")
     elif cluster_status == "terminated":
-        logging.error(f"Cluster {name} no longer exists")
+        raise Exception(f"Cluster {name} no longer exists")
     elif cluster_status not in ["creating", "updating"]:
-        logging.error(f"Failed to set up cluster named {name}")
+        raise Exception(f"Failed to set up cluster named {name}")
     else:
-        logging.error(f"Cluster {name} has unexpected status: {cluster_status}")
+        raise Exception(f"Cluster {name} has unexpected status: {cluster_status}")
 
 def upload_to_s3(src_path, dst_name=None, cluster_name=None, **kwargs):
     if dst_name is None:
