@@ -7,7 +7,7 @@ from src.imports import *
 from copy import deepcopy
 
 banyan_config = dict() # Global variable representing configuration
-print(f"{banyan_config}")
+# print(f"{banyan_config}")
 
 def load_config(banyanconfig_path:Optional[str] = None):
     """ Loads configuration from given file
@@ -22,8 +22,8 @@ def load_config(banyanconfig_path:Optional[str] = None):
     if banyan_config is None:
         if banyanconfig_path is None:
             banyanconfig_path = os.path.join(os.path.expanduser('~'), ".banyan/banyanconfig.toml")
-            print("path:")
-            print(f"{banyanconfig_path}")
+            # print("path:")
+            # print(f"{banyanconfig_path}")
         if os.path.exists(banyanconfig_path):
             banyan_config = toml.load(banyanconfig_path)
     return banyan_config
@@ -97,9 +97,9 @@ def configure(
     # return nothing
     existing_banyan_config = deepcopy(banyan_config)    
     if banyan_config is None or banyan_config == {}:
-        print("hi!")
+        # print("hi!")
         if not user_id is None and not api_key is None:
-            print("hello")
+            # print("hello")
             banyan_config = {
                 "banyan":
                     {"user_id" : user_id, "api_key" : api_key},
@@ -110,6 +110,5 @@ def configure(
             raise Exception("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
     if not existing_banyan_config == banyan_config:
         write_config(banyanconfig_path)
-    print("bnayan config")
-    print(banyan_config)
+
     return banyan_config

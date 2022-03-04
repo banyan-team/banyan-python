@@ -48,29 +48,24 @@ def method_to_string(method):
     
 def send_request_get_response(method: str, content: dict):
     configuration = load_config()
-    print("configuration: ")
-    print(f"{configuration}")
+    # print("configuration: ")
+    # print(f"{configuration}")
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
     if os.getenv("BANYAN_API_ENDPOINT", default=None) is None:
         banyan_api_endpoint = "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/"
     else:
         banyan_api_endpoint = os.getenv("BANYAN_API_ENDPOINT", default=None)
-    print("end")
-    print(banyan_api_endpoint)
     url = (banyan_api_endpoint) + method_to_string(method)
-    print(url)
     content["debug"] = True
-    print(content)
     headers = {
         "content-type": "application/json",
         "Username-APIKey": f"{user_id}-{api_key}"
     }
-    print(headers)
     resp = requests.post(url=url, json=content, headers=headers)
     data = json.loads(resp.text)
-    print(f"{resp.text}")
-    print(f"{resp.encoding}")
+    # print(f"{resp.text}")
+    # print(f"{resp.encoding}")
     if resp.status_code == 403:
         raise Exception("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials.")
     elif resp.status_code == 504:

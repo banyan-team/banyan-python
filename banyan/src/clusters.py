@@ -4,6 +4,7 @@ from .session import get_cluster_name
 from .utils import send_request_get_response, get_aws_config_region
 
 import urllib
+from tqdm import tqdm
 
 # __all__ = [
 #     "create_cluster",
@@ -55,18 +56,16 @@ def create_cluster(
 
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
-    print("one")
     if name in clusters_local:
-        print("two")
         if clusters_local[name].status == "terminated":
             logging.info(f"Started re-creating cluster named {name}")
             send_request_get_response(
                 "create_cluster",
                 {"cluster_name":name, "recreate":True}
             )
-            print("three")
+            # print("three")
             if not nowait:
-                print("hiii!")
+                # print("hiii! WAIT")
                 wait_for_cluster(name)
             return get_cluster(name)
         else:
@@ -108,8 +107,7 @@ def create_cluster(
         cluster_config["ec2_key_pair"] = ec2_key_pair
 
     logging.info(f"Started creating cluster named {name}")
-
-    # Send request to create cluster
+    # # Send request to create cluster
     send_request_get_response("create_cluster", cluster_config)
 
     if not nowait:
@@ -128,9 +126,13 @@ def destroy_cluster(name: str, **kwargs):
 
 
 def delete_cluster(name: str, **kwargs):
+    print("1")
     configure(**kwargs)
+    print("2")
     logging.info(f"Deleting cluster named {name}")
+    print("3")
     send_request_get_response("destroy_cluster", {'cluster_name' : name , 'permanently_delete' : True})
+    print("4")
 
 
 def update_cluster(name: str, **kwargs):
@@ -168,14 +170,6 @@ def get_clusters(cluster_name=None, **kwargs):
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name
     response = send_request_get_response("describe_clusters", {"filters":filters})
-    # print("typ")
-    # print(type(response))
-    # for (name, c) in response["clusters"].items():
-    #     # print()
-    #     # print('cccccccccc')   
-    #     # print(c)
-    #     # print(type(c))
-    #     # print()
     clusters_dict = {
         name : Cluster(
             name,
@@ -232,20 +226,20 @@ def get_cluster_status(name:str=None, **kwargs):
     if name is None:
         name = get_cluster_name()
     global clusters
-    print("outside if statement")
+    # print("outside if statement")
     if name in clusters:
-        print("if name in ")
+        # print("if name in ")
         if clusters[name] == "failed":
-            print("failed! :((")
+            # print("failed! :((")
             logging.error(c.status_explanation)
             # TODO: should c be clusters[name]
 
     c = get_cluster(name, **kwargs)
-    print("outside if statementv 2 ")
-    print(c)
-    print(c.status)
+    # print("outside if statementv 2 ")
+    # print(c)
+    # print(c.status)
     if c.status == "failed":
-        print("ohh... " + str(c.status_explanation))
+        # print("ohh... " + str(c.status_explanation))
         raise Exception(c.status_explanation)
     return c.status
 
@@ -255,29 +249,36 @@ def wait_for_cluster(name:str=None, **kwargs):
     if name is None:
         name = get_cluster_name()
     t = 5
-    p = progressbar.ProgressBar(max_value=progressbar.UnknownLength, widgets = [progressbar.DynamicMessage('status')])
+    pbar = tqdm(desc = "creating cluster")
+    # p = progressbar.ProgressBar(max_value=progressbar.UnknownLength, widgets = [progressbar.DynamicMessage('status')])
     cluster_status = get_cluster_status(name, **kwargs)
-    print("cluster stauts: " + str(cluster_status))
+    # print("cluster stauts: " + str(cluster_status))
     i = 0
-    print("outside the loop")
+    # print("outside the loop")
     while cluster_status == "creating" or cluster_status == "updating":
-        print("inside the loop")
-        print("cluster stauts2: " + str(cluster_status))
-        # if p is None:
-        p.update(
-            i,
-            status=(
-                f"Setting up cluster {name}"
-                if cluster_status == "creating"
-                else f"Updating cluster {name}"
-            )
-        )
+        # print("inside the loop")
+        # print("cluster stauts2: " + str(cluster_status))
+        if cluster_status == "creating":
+            pbar.set_description("Setting up cluster")
+        else:
+            pbar.set_description("Updating cluster")
+        
+        # p.update(
+        #     i,
+        #     status=(
+        #         f"Setting up cluster {name}"
+        #         if cluster_status == "creating"
+        #         else f"Updating cluster {name}"
+        #     )
+        # )
         time.sleep(t)
         if t < 80:
             t *= 2
         cluster_status = get_cluster_status(name, **kwargs)
+        pbar.update(i)
         i+=1
     if cluster_status == "running":
+        pbar.close()
         logging.info(f"Cluster {name} is ready")
     elif cluster_status == "terminated":
         raise Exception(f"Cluster {name} no longer exists")
