@@ -40,8 +40,6 @@ def create_cluster(
     If no vpc_id and subnet_id are provided, 
     the cluster is by default created in the default public VPC 
     and subnet in your AWS account.
-    The name of the AWS EC2 Key Pair that will be used 
-    to SSH into clustermust be provided.
     """
     global clusters
 
@@ -300,7 +298,7 @@ def upload_to_s3(src_path, dst_name=None, cluster_name=None, **kwargs):
     if src_path.startswith("http://") or src_path.startswith("https://"):
         with urllib.request.urlopen(src_path) as f:
             s3.upload_fileobj(f, bucket_name, dst_name)
-    if src_path.startswith("s://"):
+    if src_path.startswith("s3://"):
         bucket_src, key_src = src_path.replace("s3://", "").split("/", 1)
         copy_source = {
             'Bucket': bucket_src,
