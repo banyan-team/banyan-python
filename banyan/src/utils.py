@@ -105,7 +105,8 @@ def parse_time(time):
     string
         The DateTime is returned.
     """
-    time = datetime.strptime(time[:-4], '%Y-%m-%d-%H:%M:%S') #we don't want milli-second
+    time = datetime.fromisoformat(time) 
+    # time = datetime.strptime(time[:-4], '%Y-%m-%d-%H:%M:%S') #we don't want milli-second
     timezone = pytz.timezone("UTC")
     time = timezone.localize(time)
     local_time = time.astimezone()

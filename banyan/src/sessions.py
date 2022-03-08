@@ -1,8 +1,11 @@
 import code
 import logging
 import os
+from turtle import update
 import boto3
 import time
+from .utils import parse_time
+from datetime import datetime
 
 from pytz import NonExistentTimeError
 from .session import get_session_id, set_session, sessions, current_session_id, get_session
@@ -88,7 +91,7 @@ def end_all_sessions(cluster_name, release_resources_now = False, release_resour
     for (session_id, session) in sessions.items():
         end_session(session_id, release_resources_now, release_resources_after)
 
-def get_sessions(cluster_name = None, status = None, *args, **kwargs):
+def get_sessions(cluster_name = None, status = None, limit = -1, *args, **kwargs):
     """Gets information about all the sessions for the user. Optionally can filter
     by cluster name and status. 
         
@@ -117,14 +120,31 @@ def get_sessions(cluster_name = None, status = None, *args, **kwargs):
     #The function repeatedly calls the send_request_get_response function that takes 
     #the string 'describe_sessions' and the dictionary that contains filters. looping until 
     #'last_eval' does not exist in the indiv_response dictionary.  
+    if limit > 0:
+        # Get the last `limit` number of sessions
+        indiv_response = send_request_get_response('describe_sessions', {"filters":filters, "limit":limit})
+        sessions = indiv_response["sessions"]
+    else:
+        # Get all sessions
+        indiv_response = send_request_get_response('describe_sessions', {"filters":filters})
+        curr_last_eval = indiv_response["last_eval"]
+        sessions = indiv_response["sessions"]
+        while not curr_last_eval == None:
+            indiv_response = send_request_get_response('describe_sessions', {"filters":filters, "this_start_key":curr_last_eval})
+            sessions = sessions.update(indiv_response["sessions"])
+            curr_last_eval = indiv_response["last_eval"]
+
+
+    # sessions = {} #empty dictionary
+    # indiv_response = send_request_get_response('describe_sessions', {'filters':filters, 'limit':limit})
     
-    sessions = {} #empty dictionary
-    indiv_response = send_request_get_response('describe_sessions', {'filters':filters})["session"]
-    sessions.update(indiv_response['sessions'])
-    while 'last_eval' in indiv_response:
-        current_last_eval = indiv_response['last_eval']
-        indiv_response = send_request_get_response('describe_sessions', {'filters':filters, 'this_start_key':current_last_eval})
-        sessions.update(indiv_response['sessions'])
+    
+    # ["session"]
+    # sessions.update(indiv_response['sessions'])
+    # while 'last_eval' in indiv_response:
+    #     current_last_eval = indiv_response['last_eval']
+    #     indiv_response = send_request_get_response('describe_sessions', {'filters':filters, 'this_start_key':current_last_eval})
+    #     sessions.update(indiv_response['sessions'])
 
     # sessions is a dictionary that contains
     # mappings from session_id to another dictionary containing information about the session
@@ -300,6 +320,8 @@ def start_session(
     estimate_available_memory = True,
     nowait = False,
     email_when_ready = None,
+    for_running = False,
+
     *args, **kwargs,  
 ):
     """
@@ -344,7 +366,8 @@ def start_session(
             raise Exception("Failed to start session: you don't have any clusters created")
         else:
             cluster_name = list(running_clusters.keys())[0]
-
+            print("cluster name::::")
+            print(cluster_name)
     version = get_python_version()
     
     session_configuration = {

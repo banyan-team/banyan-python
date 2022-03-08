@@ -218,7 +218,11 @@ def get_cluster(name: Optional[str]=None, **kwargs):
     # return c.status
 
 def get_running_clusters(*args, **kwargs):
-    return [entry for entry in get_clusters(*args, **kwargs).items() if entry[1].status == "running"]
+    return {
+        entry[0]: entry[1]
+        for entry in get_clusters(*args, **kwargs).items()
+        if entry[1].status == "running"
+    }
 
 def get_cluster_status(name:str=None, **kwargs):
     if name is None:
