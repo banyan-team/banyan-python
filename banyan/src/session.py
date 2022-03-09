@@ -3,31 +3,31 @@ from .config import configure
 class Session:
     """Stores information about one session
     """
-    def _init_(self, cluster_name, session_id, resource_id, nworkers, sample_rate):
-        self.cluster_name = cluster_name
-        self.session_id = session_id
-        self.resource_id = resource_id
-        self.nworkers = nworkers
-        self.sample_rate = sample_rate
-        self.locations = {}
-        self.pending_requests = []
-        self.futures_on_client = {}
+    def __init__(self, cluster_name, session_id, resource_id, nworkers, sample_rate):
+        self._cluster_name = cluster_name
+        self._session_id = session_id
+        self._resource_id = resource_id
+        self._nworkers = nworkers
+        self._sample_rate = sample_rate
+        self._locations = {}
+        self._pending_requests = []
+        self._futures_on_client = {}
 
     @property
     def cluster_name(self):
-        return self.cluster_name
+        return self._cluster_name
     
     @property
     def job_id(self):
-        return self.job_id
+        return self._job_id
     
     @property
     def nworkers(self):
-        return self.nworkers
+        return self._nworkers
 
     @property
     def sample_rate(self):
-        return self.sample_rate
+        return self._sample_rate
  
 sessions = {}
 current_session_id = None

@@ -10,7 +10,7 @@ from .utils import parse_time
 from datetime import datetime
 
 from pytz import NonExistentTimeError
-from .session import get_session_id, set_session, sessions, current_session_id, get_session
+from .session import get_session_id, set_session, sessions, current_session_id, get_session, Session
 
 from .clusters import (
     get_running_clusters, 
@@ -101,7 +101,7 @@ def get_sessions(cluster_name = None, status = None, limit = -1, *args, **kwargs
         
     Parameters
     ----------
-    clusterr_name : string 
+    cluster_name : string 
         Name of the cluste to filter by. Defaults to nothing
     status : string 
         Status of session to filter by. Defaults to nothing
@@ -120,20 +120,27 @@ def get_sessions(cluster_name = None, status = None, limit = -1, *args, **kwargs
     
     if status is not None:
         filters['status'] = status
-
+    print("cluster name::: " + str(cluster_name))
     #The function repeatedly calls the send_request_get_response function that takes 
     #the string 'describe_sessions' and the dictionary that contains filters. looping until 
     #'last_eval' does not exist in the indiv_response dictionary.  
     if limit > 0:
+        print("limit > 0")
         # Get the last `limit` number of sessions
         indiv_response = send_request_get_response('describe_sessions', {"filters":filters, "limit":limit})
         sessions = indiv_response["sessions"]
     else:
+        print("lmint <= 0")
         # Get all sessions
         indiv_response = send_request_get_response('describe_sessions', {"filters":filters})
+        print("after describe sessions")
         curr_last_eval = indiv_response["last_eval"]
         sessions = indiv_response["sessions"]
+        print("before whilel loop")
+
         while not curr_last_eval == None:
+            print("in while loop")
+
             indiv_response = send_request_get_response('describe_sessions', {"filters":filters, "this_start_key":curr_last_eval})
             sessions = sessions.update(indiv_response["sessions"])
             curr_last_eval = indiv_response["last_eval"]
@@ -160,6 +167,7 @@ def get_sessions(cluster_name = None, status = None, limit = -1, *args, **kwargs
         else: 
             sessions[id]['end_time'] = parse_time(sessions[id]['end_time'])
         sessions[id]['start_time'] = parse_time(sessions[id]['start_time'])
+    print("donneee")
     return sessions
 
 def get_running_sessions(*args, **kwargs):
@@ -170,9 +178,9 @@ def get_running_sessions(*args, **kwargs):
     Dictionary
         Mappings from session ID to another dictionary containing information about sessions that are running
     """
-    
+    print("before configure")
     configure(*args, **kwargs)
-    
+    print("after configure")
     return get_sessions(status = 'running')
 
 def get_session_status(session_id = None, *args, **kwargs):
@@ -201,6 +209,10 @@ def get_session_status(session_id = None, *args, **kwargs):
     # various info such as the status (at the key "status").  
     response = send_request_get_response('describe_sessions', {'filters':filters})
     session_status = response['sessions'][session_id]['status']
+    print('responseee :') 
+    for key, value in response.items():
+        print(str(key) + "   " + str(value))
+    # print(response)
     if session_status == 'failed':
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
@@ -481,7 +493,7 @@ def start_session(
         # is_it_a ? a : b in Julia becomes a if is_it_a else b in Python (edited) 
         branch_to_use = Repository('.').head.shorthand if os.getenv("BANYAN_TESTING", "0") == "1" else BANYAN_PYTHON_BRANCH_NAME
         pf_dispatch_table = [
-            "https://raw.githubusercontent.com/banyan-team/banyan-python/" + branch_to_use + "/ " + dir + "/res/pf_dispatch_table.toml"
+            "https://raw.githubusercontent.com/banyan-team/banyan-python/" + branch_to_use + "/" + dir + "/res/pf_dispatch_table.toml"
             for dir in BANYAN_PYTHON_PACKAGES
         ]
 
@@ -500,7 +512,7 @@ def start_session(
     resource_id = response['resource_id']
 
 # Store in global state
-    set_session(current_session_id, Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate))
+    set_session(current_session_id, Session(cluster_name, session_id, resource_id, nworkers, sample_rate))
 
     wait_for_cluster(cluster_name)
 

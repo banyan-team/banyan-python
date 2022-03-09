@@ -30,8 +30,11 @@ def test_start_get_end():
     assert not get_running_sessions().has_key(session_id)
 
 def test_run_session():
+    name = os.getenv('BANYAN_CLUSTER_NAME')
+    print('nameee: ' + str(name))
     run_session(
         directory = 'banyan',
+        cluster_name = name,
         url = 'https://github.com/banyan-team/banyan-python',
         branch = 'claris+melany/banyan-python'
     )
