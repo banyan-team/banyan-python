@@ -4,6 +4,8 @@ import os
 from turtle import update
 import boto3
 import time
+
+# from numpy import NINF
 from .utils import parse_time
 from datetime import datetime
 
@@ -26,8 +28,10 @@ from .utils import (
     upload_file_to_s3,
     load_toml
 )
+from pygit2 import Repository
 
-
+BANYAN_PYTHON_BRANCH_NAME = "claris+melany/banyan-python"
+BANYAN_PYTHON_PACKAGES = ["banyan"]
 
 def end_session(session_id = None, failed = False, release_resources_now = False, release_resources_after = None, *args, **kwargs):
     """Ends a session given the session_id.
@@ -305,7 +309,7 @@ def start_session(
     files = None,
     code_files = None,
     force_update_files = False,
-    pf_dispatch_table = "",
+    pf_dispatch_table = None,
     using_modules = None,
     # pip_requirements_file = None, # paths to a requirements.txt file that contains packages to be installed with pip
     # conda_environment_file = None, # paths to environment.yml file that contains packages to be installed with conda
@@ -332,7 +336,7 @@ def start_session(
 
     """ 
     
-    configure(*args, **kwargs)
+    print(configure(*args, **kwargs))
 
     if sample_rate is None:
         sample_rate = nworkers
@@ -362,6 +366,7 @@ def start_session(
     if cluster_name is None:
         # running_clusters is dictionary
         running_clusters = get_running_clusters()
+        print(running_clusters)
         if len(running_clusters) == 0:
             raise Exception("Failed to start session: you don't have any clusters created")
         else:
@@ -471,8 +476,21 @@ def start_session(
     #if pf_dispatch_table is None:
         #TO DO add this
     #    pass
+    
+    if pf_dispatch_table is None:
+        # is_it_a ? a : b in Julia becomes a if is_it_a else b in Python (edited) 
+        branch_to_use = Repository('.').head.shorthand if os.getenv("BANYAN_TESTING", "0") == "1" else BANYAN_PYTHON_BRANCH_NAME
+        pf_dispatch_table = [
+            "https://raw.githubusercontent.com/banyan-team/banyan-python/" + branch_to_use + "/ " + dir + "/res/pf_dispatch_table.toml"
+            for dir in BANYAN_PYTHON_PACKAGES
+        ]
 
-    pf_dispatch_table_loaded = {} #load_toml(pf_dispatch_table)
+    # TODO:
+    # 1. Fix up above code and convert to Python
+    # 2. Push your code
+    # 3. Re-run and ensure load_toml works
+
+    pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
     session_configuration['pf_dispatch_table'] = pf_dispatch_table_loaded
     session_configuration['language'] = 'py' 
 

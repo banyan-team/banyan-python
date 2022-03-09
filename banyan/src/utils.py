@@ -166,12 +166,28 @@ def upload_file_to_s3(filename, bucket, object_name = None):
 def load_toml(path):
     # path --> "file://.banyan/banyanconfig.toml"
     # path[2:], path[4:8], path[:9]
+    if isinstance(path, list):    
+        result = {}
+        for p in path:
+            result.update(load_toml(p))
+        return result
     if path.startswith('file://'):
-        toml.loads(path[7:-1])
+        return toml.loads(path[7:-1])
     
     elif path.startswith('s3://'):
         raise Exception("S3 path not currently supported")
 
     elif (path.startswith('http://')) or (path.startswith('https://')):
-        r = (urllib3.PooManager().request('GET', path)).data #downloads the data from the internet into a toml-fomatted string
+        r = (requests.get(path)).content #downloads the data from the internet into a toml-fomatted string
+        print("get")
+        print(path)
+        print("contents")
+        print((requests.get(path)).content)
+        print("text")
+        print((requests.get(path)).text)
+        print("decoded 1")
+        print(r.decode((requests.get(path)).content))
+        print("decoded 2")
+        print(r.decod((requests.get(path)).text))
         data = toml.loads(r.decode("utf-8"))#loads the toml-formatted string 
+        return data

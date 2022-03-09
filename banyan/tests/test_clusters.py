@@ -41,7 +41,8 @@ def test_create_run_destroy():
 
     # assert not cluster_name in get_running_clusters()
 
-def test_get_clusters():
     #  cluster_name = os.environ['BANYAN_CLUSTER_NAME']
+    print("normal")
     print(get_clusters())   
-
+    print("running")
+    print(get_running_clusters())   

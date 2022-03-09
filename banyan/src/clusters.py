@@ -163,7 +163,7 @@ def parsestatus(status: str):
 
 def get_clusters(cluster_name=None, **kwargs):
     logging.debug("Downloading description of clusters")
-    configure(**kwargs)
+    print(configure(**kwargs))
     filters = {}
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name
@@ -182,6 +182,9 @@ def get_clusters(cluster_name=None, **kwargs):
     global clusters
     for (name, c) in clusters_dict.items():
         clusters[name] = c
+
+    print(clusters)
+    print(clusters_dict)
     
     return clusters_dict
 

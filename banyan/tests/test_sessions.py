@@ -31,7 +31,8 @@ def test_start_get_end():
 
 def test_run_session():
     run_session(
-    directory = 'banyan',
-    url = 'https://github.com/banyan-team/banyan-python',
-    branch = 'claris+melany/banyan-python')
+        directory = 'banyan',
+        url = 'https://github.com/banyan-team/banyan-python',
+        branch = 'claris+melany/banyan-python'
+    )
     
