@@ -216,7 +216,7 @@ def get_session_status(session_id = None, *args, **kwargs):
     if session_status == 'failed':
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
-        logging.info(response['status_explanation']) 
+        logging.info(response['sessions'][session_id]['status_explanation']) 
     return session_status
 
 #>>> response = {'sessions': {}} response contains a dictionary at the key 'sessions' 
@@ -412,7 +412,9 @@ def start_session(
         session_configuration['email_when_ready'] = email_when_ready
      
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
-
+    print("CONFIGURRE")
+    for key, value in session_configuration.items():
+        print(str(key) + "    " + str(value))
     environment_info ={}
     # If a url is not provided, then use the local environment
     if url is None:
@@ -435,6 +437,7 @@ def start_session(
             # At this point, both files have been read in so we go ahead and
             # get the hash of them concatenated
             environment_hash = get_hash(poetry_lock_file_contents + file_contents)
+            print("enivornment hashhhhhhhh " + str(environment_hash))
             environment_info['environment_hash'] = environment_hash
 
             # Upload the pyproject.toml file to S3

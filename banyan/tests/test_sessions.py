@@ -1,3 +1,4 @@
+from operator import truediv
 import os
 
 from src.sessions import get_sessions, start_session, get_running_sessions, end_session, get_running_sessions, run_session
@@ -33,9 +34,10 @@ def test_run_session():
     name = os.getenv('BANYAN_CLUSTER_NAME')
     print('nameee: ' + str(name))
     run_session(
-        directory = 'banyan',
+        directory = 'banyan-python',
         cluster_name = name,
         url = 'https://github.com/banyan-team/banyan-python',
-        branch = 'claris+melany/banyan-python'
+        branch = 'claris+melany/banyan-python',
+        force_pull=True
     )
     

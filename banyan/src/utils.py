@@ -136,6 +136,7 @@ def get_hash(s):
     
     """
     hs = hashlib.sha256(s.encode('utf-8')).hexdigest()
+    return hs
 
 def upload_file_to_s3(filename, bucket, object_name = None):
     """Uploads file to the S3 bucket
