@@ -463,7 +463,7 @@ def start_session(
         
         environment_info['directory'] = directory
     
-        if branch is None:
+        if branch is not None:
             environment_info['branch'] = branch
     
         environment_info['dev_paths'] = dev_paths

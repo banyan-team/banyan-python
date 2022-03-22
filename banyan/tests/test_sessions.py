@@ -34,7 +34,8 @@ def test_run_session():
     name = os.getenv('BANYAN_CLUSTER_NAME')
     print('nameee: ' + str(name))
     run_session(
-        directory = 'banyan-python',
+        directory = 'banyan-python/banyan',
+        nworkers = 2,
         cluster_name = name,
         url = 'https://github.com/banyan-team/banyan-python',
         branch = 'claris+melany/banyan-python',
