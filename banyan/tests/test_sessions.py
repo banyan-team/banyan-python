@@ -39,6 +39,7 @@ def test_run_session():
         cluster_name = name,
         url = 'https://github.com/banyan-team/banyan-python',
         branch = 'claris+melany/banyan-python',
-        force_pull=True
+        force_pull=True,
+        dev_paths=['banyan-python/banyan'] 
     )
     
