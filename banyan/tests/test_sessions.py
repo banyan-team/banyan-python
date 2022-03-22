@@ -40,6 +40,7 @@ def test_run_session():
         url = 'https://github.com/banyan-team/banyan-python',
         branch = 'claris+melany/banyan-python',
         force_pull=True,
-        dev_paths=['banyan-python/banyan'] 
+        dev_paths=['banyan-python/banyan'],
+        directory = "banyan-python/banyan/test"
     )
     
