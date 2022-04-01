@@ -41,8 +41,6 @@ def test_start_get_end():
 
 def test_run_session():
     name = os.getenv("BANYAN_CLUSTER_NAME")
-    print("nameee: " + str(name))
-    print("FORCE_SYNC: ", os.getenv("BANYAN_FORCE_SYNC") == "1")
     run_session(
         nworkers=2,
         cluster_name=name,
