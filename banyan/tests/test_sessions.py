@@ -41,6 +41,6 @@ def test_run_session():
         branch = 'claris+melany/banyan-python',
         force_pull=True,
         dev_paths=['banyan-python/banyan'],
-        directory = "banyan-python/banyan/test"
+        directory = "banyan-python/banyan-tests"
     )
     
