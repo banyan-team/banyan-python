@@ -19,8 +19,8 @@ class Session:
         return self._cluster_name
 
     @property
-    def job_id(self):
-        return self._job_id
+    def resource_id(self):
+        return self._resource_id
 
     @property
     def nworkers(self):
@@ -29,6 +29,8 @@ class Session:
     @property
     def sample_rate(self):
         return self._sample_rate
+
+    # Add other getters if needed
 
 
 sessions = {}
