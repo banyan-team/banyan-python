@@ -1,7 +1,7 @@
 from operator import truediv
 import os
 
-from src.sessions import (
+from banyan.sessions import (
     get_sessions,
     start_session,
     get_running_sessions,
@@ -48,7 +48,7 @@ def test_run_session():
         cluster_name=name,
         url="https://github.com/banyan-team/banyan-python",
         branch="claris+melany/banyan-python",
-        directory="banyan-python/banyan-tests",
-        dev_paths=["banyan-python/banyan"],
+        directory="banyan-python/banyan",
+        # dev_paths=["banyan-python/banyan/"],
         force_sync=os.getenv("BANYAN_FORCE_SYNC") == "1",
     )
