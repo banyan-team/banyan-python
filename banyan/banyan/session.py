@@ -1,4 +1,5 @@
-from .config import configure
+sessions = dict()
+current_session_id = None
 
 
 class Session:
@@ -33,10 +34,6 @@ class Session:
     # Add other getters if needed
 
 
-sessions = {}
-current_session_id = None
-
-
 def set_session(session_id: str, session=None, *args, **kwargs):
     """Sets the session ID.
 
@@ -48,8 +45,6 @@ def set_session(session_id: str, session=None, *args, **kwargs):
         If not None (default), the global sessions table is updated to include
         this session.
     """
-
-    # configure(*args, **kwargs)
 
     global current_session_id
     current_session_id = session_id
@@ -67,8 +62,6 @@ def get_session_id(*args, **kwargs):
     string
         Current session ID
     """
-
-    # configure(*args, **kwargs)
 
     global current_session_id
     if current_session_id is None:
@@ -97,8 +90,6 @@ def get_session(session_id=None, *args, **kwargs):
         process or has failed
     """
 
-    # configure(*args, **kwargs)
-
     if session_id is None:
         session_id = get_session_id()
     global sessions  # an empty dictionary that will get filled up with mappings from session_id ->instances of the class Session
@@ -117,7 +108,5 @@ def get_cluster_name(*args, **kwargs):
     string
         Name of the cluster that the current session is running on.
     """
-
-    configure(*args, **kwargs)
 
     return get_session().cluster_name

@@ -7,16 +7,15 @@ from banyan.imports import *
 from copy import deepcopy
 
 banyan_config = dict()  # Global variable representing configuration
-# print(f"{banyan_config}")
 
 
 def load_config(banyanconfig_path: Optional[str] = None):
     """Loads configuration from given file
 
     Arguments:
-    - banyanconfig_path:Optional[str], defaults to None
-        filepath to Banyan configuration file
-        if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
+        banyanconfig_path:Optional[str], defaults to None
+            filepath to Banyan configuration file
+            if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
     """
     global banyan_config
 
@@ -25,8 +24,6 @@ def load_config(banyanconfig_path: Optional[str] = None):
             banyanconfig_path = os.path.join(
                 os.path.expanduser("~"), ".banyan/banyanconfig.toml"
             )
-            # print("path:")
-            # print(f"{banyanconfig_path}")
         if os.path.exists(banyanconfig_path):
             banyan_config = toml.load(banyanconfig_path)
     return banyan_config
@@ -36,9 +33,9 @@ def write_config(banyanconfig_path: Optional[str] = None):
     """Writes configuration to given file
 
     Arguments:
-    - banyanconfig_path:Optional[str], defaults to None
-        filepath to Banyan configuration file
-        if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
+        banyanconfig_path:Optional[str], defaults to None
+            filepath to Banyan configuration file
+            if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
     """
     global banyan_config
     if banyanconfig_path is None:
@@ -51,9 +48,6 @@ def write_config(banyanconfig_path: Optional[str] = None):
     with open(banyanconfig_path, "w") as f:
         toml.dump(banyan_config, f)
     return banyan_config
-
-
-banyan_config = {}
 
 
 def configure(
