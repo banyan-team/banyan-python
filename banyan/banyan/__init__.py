@@ -37,7 +37,6 @@ from .sessions import (
     get_session_status,
     download_session_logs,
     wait_for_session,
-    with_session,
     start_session,
     run_session,
 )

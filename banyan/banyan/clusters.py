@@ -4,7 +4,11 @@ import urllib
 from .config import configure
 from .imports import *
 from .session import get_cluster_name
-from .utils import send_request_get_response, get_aws_config_region, s3_bucket_arn_to_name
+from .utils import (
+    send_request_get_response,
+    get_aws_config_region,
+    s3_bucket_arn_to_name,
+)
 
 
 s3 = boto3.client("s3")
@@ -240,17 +244,17 @@ def wait_for_cluster(name: str = None, **kwargs):
         cluster_status = get_cluster_status(name, **kwargs)
         pbar.update(i)
         i += 1
-    if cluster_status == "running":
+    try:
         pbar.close()
+    except:
+        pass
+    if cluster_status == "running":
         logging.info(f"Cluster {name} is ready")
     elif cluster_status == "terminated":
-        pbar.close()
         raise Exception(f"Cluster {name} no longer exists")
     elif cluster_status not in ["creating", "updating"]:
-        pbar.close()
         raise Exception(f"Failed to set up cluster named {name}")
     else:
-        pbar.close()
         raise Exception(f"Cluster {name} has unexpected status: {cluster_status}")
 
 

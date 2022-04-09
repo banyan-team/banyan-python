@@ -3,7 +3,7 @@ import logging
 import os
 from pygit2 import Repository
 import time
-import tqdm
+from tqdm import tqdm
 
 from .constants import BANYAN_PYTHON_BRANCH_NAME, BANYAN_PYTHON_PACKAGES
 from .clusters import get_running_clusters, get_cluster_s3_bucket_name, wait_for_cluster
@@ -216,7 +216,7 @@ def start_session(
 
     # Store in global state
     set_session(
-        current_session_id,
+        session_id,
         Session(cluster_name, session_id, resource_id, nworkers, sample_rate),
     )
 
@@ -273,7 +273,8 @@ def end_session(
 
     # Remove from global state
     set_session(None)
-    del sessions[session_id]
+    if session_id in sessions:
+        del sessions[session_id]
     return session_id
 
 
@@ -353,7 +354,7 @@ def get_sessions(cluster_name=None, status=None, limit=-1, *args, **kwargs):
                 "describe-sessions",
                 {"filters": filters, "this_start_key": curr_last_eval},
             )
-            sessions = sessions.update(indiv_response["sessions"])
+            sessions.update(indiv_response["sessions"])
             curr_last_eval = indiv_response["last_eval"]
 
     # sessions is a dictionary that contains
@@ -412,7 +413,8 @@ def get_session_status(session_id=None, *args, **kwargs):
     if session_status == "failed":
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
-        logging.info(response["sessions"][session_id]["status_explanation"])
+        # TODO: Should this be logging.error?
+        print(response["sessions"][session_id]["status_explanation"])
     return session_status
 
 
@@ -461,14 +463,19 @@ def wait_for_session(session_id=None, *args, **kwargs):
     session_status = get_session_status(session_id)
     t = 5
     i = 0
-    while session_status == "creating":
+    if session_status == "creating":
         pbar = tqdm(desc=f"Starting session with ID {session_id}")
+    while session_status == "creating":
         time.sleep(t)
         if t < 80:
             t *= 2
         session_status = get_session_status(session_id)
         pbar.update(i)
         i += 1
+    try:
+        pbar.close()
+    except:
+        pass
     if session_status == "running":
         logging.info(f"session with ID {session_id} is ready")
     elif session_status == "completed":
@@ -555,7 +562,7 @@ def run_session(
         except:
             session_id = None
         if session_id is not None:
-            end_session(get_session(), failed=True)
+            end_session(get_session_id(), failed=True)
         raise
     finally:
         try:
