@@ -122,15 +122,11 @@ def destroy_cluster(name: str, **kwargs):
 
 
 def delete_cluster(name: str, **kwargs):
-    print("1")
     configure(**kwargs)
-    print("2")
     logging.info(f"Deleting cluster named {name}")
-    print("3")
     send_request_get_response(
         "destroy-scluster", {"cluster_name": name, "permanently_delete": True}
     )
-    print("4")
 
 
 def update_cluster(name: str, **kwargs):
@@ -157,7 +153,6 @@ class Cluster:
 
 def get_clusters(cluster_name=None, **kwargs):
     logging.debug("Downloading description of clusters")
-    print(configure(**kwargs))
     filters = {}
     if cluster_name is not None:
         filters["cluster_name"] = cluster_name

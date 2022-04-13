@@ -280,7 +280,7 @@ def test_run_session_with_mpi_script_with_error():
             url="https://github.com/banyan-team/banyan-python",
             branch=TEST_BRANCH,
             directory="banyan-python/banyan",
-            code_files=["mpi_script_fail.py"],
+            code_files=["tests/mpi_script_fail.py"],
             force_sync=os.getenv("BANYAN_FORCE_SYNC") == "1",
             store_logs_on_cluster=os.environ.get("BANYAN_STORE_LOGS_ON_CLUSTER", "0")
             == "1",

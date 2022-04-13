@@ -114,9 +114,7 @@ def configure(
     # return nothing
     existing_banyan_config = deepcopy(banyan_config)
     if banyan_config is None or banyan_config == {}:
-        # print("hi!")
         if not user_id is None and not api_key is None:
-            # print("hello")
             banyan_config = {
                 "banyan": {"user_id": user_id, "api_key": api_key},
                 "aws": {},

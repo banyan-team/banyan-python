@@ -16,8 +16,10 @@ def get_scatter_queue(resource_id = None):
     return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_scatter.fifo")["QueueUrl"]
 
 def get_gather_queue(resource_id = None):
+    print("1 - ", resource_id)
     if resource_id is None:
         resource_id = get_session().resource_id
+    print("2 - ", resource_id)
     return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_gather.fifo")["QueueUrl"]
 
 def get_execution_queue(resource_id = None):
@@ -66,6 +68,7 @@ def receive_next_message(queue_name):
 
 # Used by Banyan/src/pfs.jl, intended to be called from the executor
 def receive_from_client(value_id):
+    print("QUEUE NAME: ", get_gather_queue())
     # Send scatter message to client
     send_message(
         get_gather_queue(),
@@ -84,15 +87,16 @@ def receive_from_client(value_id):
 ################
 
 def send_message(queue_name, message):
-    queue_url = sqs.get_queue_url(queue_name)
+    # queue_url = sqs.get_queue_url(queue_name)
     return sqs.send_message(
-        QueueUrl = queue_url,
+        QueueUrl = queue_name,  #queue_url,
         MessageBody=message, # TODO: Is that correct?,
         MessageGroupId = "1",
-        MessageDuplicationId = generate_message_id() # TODO: where does that function come from?
+        MessageDeduplicationId = generate_message_id() # TODO: where does that function come from?
     )
 
 def send_to_client(value_id, value):
+    print("QUEUE NAME: ", get_gather_queue())
     send_message(
         get_gather_queue(),
         json.dumps(
