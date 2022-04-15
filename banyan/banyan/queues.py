@@ -3,6 +3,7 @@ import json
 
 from .id import generate_message_id, ResourceId 
 from .sessions import get_session, get_session_id, end_session
+from .utils import from_py_value_contents, to_py_value_contents
 
 sqs = boto3.client('sqs') 
 
@@ -16,10 +17,8 @@ def get_scatter_queue(resource_id = None):
     return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_scatter.fifo")["QueueUrl"]
 
 def get_gather_queue(resource_id = None):
-    print("1 - ", resource_id)
     if resource_id is None:
         resource_id = get_session().resource_id
-    print("2 - ", resource_id)
     return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_gather.fifo")["QueueUrl"]
 
 def get_execution_queue(resource_id = None):
@@ -57,6 +56,7 @@ def receive_next_message(queue_name):
     elif content.startswith("JOB_FAILURE") or content.startswith(content, "SESSION_FAILURE"):
         tail = 11 if content.endswith("MESSAGE_END") else 0
         head_len = 11 if content.startswith("JOB_FAILURE") else 15
+        # This print statement is needed, so that we can print out the error message
         print(content[head_len:tail])
         if content.endswith("MESSAGE_END"):
             end_session(failed = True, release_resources_now = content.startswith("JOB_FAILURE"))
@@ -68,7 +68,6 @@ def receive_next_message(queue_name):
 
 # Used by Banyan/src/pfs.jl, intended to be called from the executor
 def receive_from_client(value_id):
-    print("QUEUE NAME: ", get_gather_queue())
     # Send scatter message to client
     send_message(
         get_gather_queue(),
@@ -76,9 +75,7 @@ def receive_from_client(value_id):
     )
     # Receive response from client
     m = json.loads(get_next_message(get_scatter_queue()))
-    # TODO: Implement from_jl_value_contents
-    # v = from_jl_value_contents(m["contents"])
-    v = None
+    v = from_py_value_contents(m["contents"])
     return v
 
 
@@ -103,7 +100,7 @@ def send_to_client(value_id, value):
             {
                 "kind":"GATHER",
                 "value_id":value_id,
-                "contents":None #to_jl_value_contents(value) TODO: Implement
+                "contents": to_py_value_contents(value)
             }
         )
     )

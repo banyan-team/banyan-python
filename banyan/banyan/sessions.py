@@ -378,9 +378,7 @@ def get_running_sessions(*args, **kwargs):
     Dictionary
         Mappings from session ID to another dictionary containing information about sessions that are running
     """
-    print("before configure")
     configure(*args, **kwargs)
-    print("after configure")
     return get_sessions(status="running")
 
 
@@ -414,6 +412,7 @@ def get_session_status(session_id=None, *args, **kwargs):
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
         # TODO: Should this be logging.error?
+        # This print statement is necessary so that we can print reason for session failure
         print(response["sessions"][session_id]["status_explanation"])
     return session_status
 

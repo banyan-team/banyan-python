@@ -1,4 +1,8 @@
 import os
+import random
+import string
+
+
 from banyan.clusters import update_cluster
 from banyan.clusters import wait_for_cluster
 import pytest
@@ -12,47 +16,33 @@ from banyan.clusters import (
 )
 
 
-def test_create_run_destroy():
-    # tests a bad name
-    # print("testing a bad name (it should give an error)")
-    # with pytest.raises(Exception) as excinfo:
-    #     bad_cluster_name = 'stanley cluster'
-    #     cluster_object = create_cluster(
-    #         name = bad_cluster_name,
-    #         instance_type = "t3.2xlarge",
-    #         region = "us-west-2",
-    #         ec2_key_pair_name = "CailinSSHKeyPair"
-    #     )
-    # assert str(excinfo.value) == 'Cluster name can only contain lowercase letters, numbers, and hyphens'
 
-    # print("testing create a cluster")
-    cluster_name = "stanley-session-woof2-cluster"
-    update_cluster(cluster_name)
-    # cluster_object = create_cluster(
-    #     name = cluster_name,
-    #     instance_type = "t3.2xlarge",
-    #     region = "us-west-2",
-    #     ec2_key_pair = "CailinSSHKeyPair"
-    # )
-    # # list_clusters = get_clusters()
-    # # print("clusters:")
-    # # print(list_clusters)
+def test_create_cluster_with_invalid_name():
+    with pytest.raises(Exception) as excinfo:
+        bad_cluster_name = "name with spaces"
+        cluster_object = create_cluster(
+            name = bad_cluster_name,
+            instance_type = "t3.xlarge",
+        )
+    assert "can only contain" in str(excinfo.value)
 
-    # # assert cluster_name in get_clusters()
-    # # print("hi!")
-    # # print(get_cluster_status(cluster_name))
-    # # wait_for_cluster(cluster_name)
 
-    # # assert cluster_name in get_running_clusters()
+def test_create_delete_cluster():
 
-    # # delete_cluster(cluster_name)
+    cluster_name = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-    # # assert cluster_name in get_clusters()
+    cluster_object = create_cluster(
+        name = cluster_name,
+        instance_type = "t3.xlarge",
+    )
 
-    # # assert not cluster_name in get_running_clusters()
+    assert cluster_name in get_clusters()
+ 
+    assert cluster_name in get_running_clusters()
 
-    # #  cluster_name = os.environ['BANYAN_CLUSTER_NAME']
-    # print("normal")
-    # print(get_clusters())
-    # print("running")
-    # print(get_running_clusters())
+    delete_cluster(cluster_name)
+
+    assert cluster_name in get_clusters()
+
+    assert not cluster_name in get_running_clusters()
+

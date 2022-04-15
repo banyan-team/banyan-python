@@ -1,4 +1,6 @@
 import boto3
+from contextlib import nullcontext as does_not_raise
+
 import os
 import pytest
 import time
@@ -259,17 +261,18 @@ def test_start_session_with_invalid_branch_name():
 
 def test_run_session_with_mpi_script():
     cluster_name = os.getenv("BANYAN_CLUSTER_NAME")
-    run_session(
-        cluster_name=cluster_name,
-        nworkers=2,
-        url="https://github.com/banyan-team/banyan-python",
-        branch=TEST_BRANCH,
-        directory="banyan-python/banyan",
-        code_files=["tests/mpi_script_success.py"],
-        force_sync=os.getenv("BANYAN_FORCE_SYNC") == "1",
-        store_logs_on_cluster=os.environ.get("BANYAN_STORE_LOGS_ON_CLUSTER", "0")
-        == "1",
-    )
+    with does_not_raise():
+        run_session(
+            cluster_name=cluster_name,
+            nworkers=2,
+            url="https://github.com/banyan-team/banyan-python",
+            branch=TEST_BRANCH,
+            directory="banyan-python/banyan",
+            code_files=["tests/mpi_script_success.py"],
+            force_sync=os.getenv("BANYAN_FORCE_SYNC") == "1",
+            store_logs_on_cluster=os.environ.get("BANYAN_STORE_LOGS_ON_CLUSTER", "0")
+            == "1",
+        )
 
 def test_run_session_with_mpi_script_with_error():
     cluster_name = os.getenv("BANYAN_CLUSTER_NAME")

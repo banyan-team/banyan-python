@@ -1,12 +1,13 @@
 from .constants import BANYAN_API_ENDPOINT
 from .imports import *
-from operator import truediv
 import boto3
+import codecs
 import hashlib
 import inspect
 import json
 import logging
 import os
+import pickle
 import platform
 import pytz
 import requests
@@ -53,8 +54,6 @@ def send_request_get_response(method: str, content: dict):
     }
     resp = requests.post(url=url, json=content, headers=headers)
     data = json.loads(resp.text)
-    # print(f"{resp.text}")
-    # print(f"{resp.encoding}")
     if resp.status_code == 403:
         raise Exception(
             "Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."
@@ -181,15 +180,28 @@ def load_toml(path):
         r = (
             requests.get(path)
         ).content  # downloads the data from the internet into a toml-fomatted string
-        # print("get")
-        # print(path)
-        # print("contents")
-        # print((requests.get(path)).content)
-        # print("text")
-        # print((requests.get(path)).text)
-        # print("decoded 1")
-        # print(r.decode((requests.get(path)).content))
-        # print("decoded 2")
-        # print(r.decode((requests.get(path)).text))
-        # data = toml.loads(r.decode("utf-8"))#loads the toml-formatted string
         return toml.loads(requests.get(path).text)
+
+
+def to_ppy_value_contents(py):
+    # Handle functions defined in a module
+    # TODO: Document this special case
+    # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
+    # if jl isa Expr && eval(jl) isa Function
+    #     jl = Dict("is_banyan_udf" => true, "code" => jl)
+    # end
+
+    # Convert Python object to string
+    return codecs.encode(pickle.dumps(py), "base64").decode()
+
+
+def from_py_value_contents(py_value_contents):
+    # Converty string to Python object
+    return pickle.loads(codecs.decode(py_value_contents.encode(), "base64"))
+
+    # # Handle functions defined in a module
+    # if res isa Dict && haskey(res, "is_banyan_udf") && res["is_banyan_udf"]
+    #     eval(res["code"])
+    # else
+    #     res
+    # end
