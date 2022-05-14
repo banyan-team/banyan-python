@@ -1,5 +1,5 @@
 from .constants import BANYAN_API_ENDPOINT
-from .imports import *
+
 import boto3
 import codecs
 import hashlib
@@ -21,11 +21,9 @@ from typing import Dict
 
 s3_client = boto3.client("s3")
 
-s3 = boto3.client("s3")
-
 
 def get_aws_config_region():
-    return s3.meta.region_name
+    return s3_client.meta.region_name
 
 
 def method_to_endpoint(method):

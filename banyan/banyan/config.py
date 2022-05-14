@@ -6,7 +6,7 @@ loading configurations.
 from banyan.imports import *
 from copy import deepcopy
 
-banyan_config = dict()  # Global variable representing configuration
+banyan_config = None  # Global variable representing configuration
 
 
 def load_config(banyanconfig_path: Optional[str] = None):
