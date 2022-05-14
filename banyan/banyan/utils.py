@@ -13,6 +13,7 @@ import pytz
 import requests
 import toml
 
+
 from botocore.exceptions import ClientError
 from .config import load_config
 from datetime import datetime
@@ -183,7 +184,7 @@ def load_toml(path):
         return toml.loads(requests.get(path).text)
 
 
-def to_ppy_value_contents(py):
+def to_py_value_contents(py):
     # Handle functions defined in a module
     # TODO: Document this special case
     # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))

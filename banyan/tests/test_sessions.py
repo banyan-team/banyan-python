@@ -5,6 +5,7 @@ import os
 import pytest
 import time
 
+
 from banyan.clusters import get_cluster_s3_bucket_name
 from banyan.sessions import (
     get_session,
@@ -17,7 +18,7 @@ from banyan.sessions import (
     run_session,
 )
 
-TEST_BRANCH = "claris+melany/banyan-python"
+TEST_BRANCH = "v22.05.14"
 
 
 @pytest.mark.parametrize(
@@ -56,7 +57,9 @@ def test_start_get_end_sessions():
     assert session_id in running_sessions
     assert session_id in all_sessions
     # After end_session
-    assert (session_id in all_sessions_after) and (all_sessions_after[session_id]["status"] == "completed")
+    assert (session_id in all_sessions_after) and (
+        all_sessions_after[session_id]["status"] == "completed"
+    )
     assert session_id not in running_sessions_after
 
 
@@ -274,6 +277,7 @@ def test_run_session_with_mpi_script():
             == "1",
         )
 
+
 def test_run_session_with_mpi_script_with_error():
     cluster_name = os.getenv("BANYAN_CLUSTER_NAME")
     with pytest.raises(Exception):
@@ -289,7 +293,6 @@ def test_run_session_with_mpi_script_with_error():
             == "1",
         )
 
-   
 
 # @testset "Reusing session that fails" begin
 #     Pkg.activate("./")
@@ -332,9 +335,3 @@ def test_run_session_with_mpi_script_with_error():
 #     @test session_status_1_after_failure == "failed"
 #     @test resource_id_2 == resource_id_1
 # end
-
-
-
-
-
-
