@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "banyan"
+name = "banyan-python"
 version = "0.1.0"
 description = "Massively parallel cloud computing with popular Python libraries for analytics, processing, and simulation! "
 authors = ["Banyan Computing <support@banyancomputing.com>"]
@@ -21,6 +21,9 @@ keywords = [
     "Multiprocessing",
     "Multi-processing",
     "AWS"
+]
+packages = [
+    { include = "banyan" }
 ]
 
 [tool.poetry.dependencies]
