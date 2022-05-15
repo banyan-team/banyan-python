@@ -54,7 +54,7 @@ def start_session(
     force_pull: bool = False,
     force_install=False,
     estimate_available_memory=True,
-    nowait=False,
+    nowait=True,
     email_when_ready=None,
     for_running=False,
     *args,
