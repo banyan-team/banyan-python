@@ -43,7 +43,7 @@ git remote set-url origin git@github.com:banyan-team/banyan-website.git
 
 ## Installation
 
-Make sure you have Python and [Poetry](https://python-poetry.org/docs/) installed and then run `poetry install` and `poetry update`
+Make sure you have Python and [Poetry](https://python-poetry.org/docs/) installed and then run `poetry install`
 from the Banyan Python project you want to work on (e.g., `banyan-python` for banyan-python).
 
 ## Testing
