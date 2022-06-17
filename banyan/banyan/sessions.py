@@ -174,7 +174,7 @@ def start_session(
         environment_info["dev_paths"] = dev_paths
         environment_info["force_sync"] = force_sync
         environment_info["force_pull"] = force_pull
-        environment_info["force_install"] = force_install
+        environment_info["force_install"] = False  # force_install
         environment_info["environment_hash"] = get_hash(
             url + ("" if branch is None else branch)
         )
