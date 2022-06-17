@@ -41,7 +41,7 @@ def start_session(
     files: list = None,
     code_files: list = None,
     force_update_files: bool = False,
-    pf_dispatch_table: str = None,
+    pf_dispatch_table: list[str] = None,
     using_modules: list = None,
     # pip_requirements_file = None, # paths to a requirements.txt file that contains packages to be installed with pip
     # conda_environment_file = None, # paths to environment.yml file that contains packages to be installed with conda
