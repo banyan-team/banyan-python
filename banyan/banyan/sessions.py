@@ -4,10 +4,16 @@ import os
 from pygit2 import Repository
 import time
 from tqdm import tqdm
+from typing import List
 
 
 from .constants import BANYAN_PYTHON_BRANCH_NAME, BANYAN_PYTHON_PACKAGES
-from .clusters import get_running_clusters, get_cluster_s3_bucket_name, wait_for_cluster
+from .clusters import (
+    get_cluster,
+    get_running_clusters,
+    get_cluster_s3_bucket_name,
+    wait_for_cluster,
+)
 from .config import configure
 from .session import (
     get_session_id,
@@ -41,7 +47,7 @@ def start_session(
     files: list = None,
     code_files: list = None,
     force_update_files: bool = False,
-    pf_dispatch_table: list[str] = None,
+    pf_dispatch_table: List[str] = None,
     using_modules: list = None,
     # pip_requirements_file = None, # paths to a requirements.txt file that contains packages to be installed with pip
     # conda_environment_file = None, # paths to environment.yml file that contains packages to be installed with conda
@@ -99,8 +105,12 @@ def start_session(
             cluster_name = list(running_clusters.keys())[0]
     version = get_python_version()
 
+    c = get_cluster(cluster_name)
+
     session_configuration = {
         "cluster_name": cluster_name,
+        "organization_id": c.organization_id,
+        "curr_cluster_instance_id": c.curr_cluster_instance_id,
         "num_workers": nworkers,
         "release_resources_after": release_resources_after,
         "return_logs": print_logs,
@@ -500,6 +510,7 @@ def run_session(
     force_update_files=True,
     pf_dispatch_table=None,
     using_modules=None,
+    project_dir=None,
     url=None,
     branch=None,
     directory=None,
@@ -544,6 +555,7 @@ def run_session(
             force_update_files=force_update_files,
             pf_dispatch_table=pf_dispatch_table,
             using_modules=using_modules,
+            project_dir=project_dir,
             url=url,
             branch=branch,
             directory=directory,

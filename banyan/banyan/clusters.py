@@ -125,7 +125,7 @@ def delete_cluster(name: str, **kwargs):
     configure(**kwargs)
     logging.info(f"Deleting cluster named {name}")
     send_request_get_response(
-        "destroy-scluster", {"cluster_name": name, "permanently_delete": True}
+        "destroy-cluster", {"cluster_name": name, "permanently_delete": True}
     )
 
 
@@ -143,12 +143,24 @@ def assert_cluster_is_ready(name: str, **kwargs):
 
 class Cluster:
     def __init__(
-        self, name: str, status: str, status_explanation: str, s3_bucket_arn: str
+        self,
+        name: str,
+        status: str,
+        status_explanation: str,
+        s3_bucket_arn: str,
+        organization_id: str,
+        curr_cluster_instance_id: str,
+        num_sessions_running: int,
+        num_workers_running: int,
     ):
         self.name = name
         self.status = status
         self.status_explanation = status_explanation
         self.s3_bucket_arn = s3_bucket_arn
+        self.organization_id = organization_id
+        self.curr_cluster_instance_id = curr_cluster_instance_id
+        self.num_sessions_running = num_sessions_running
+        self.num_workers_running = num_workers_running
 
 
 def get_clusters(cluster_name=None, **kwargs):
@@ -161,8 +173,12 @@ def get_clusters(cluster_name=None, **kwargs):
         name: Cluster(
             name,
             c["status"],
-            c["status_explanation"] if "status_explanation" in c else "",
+            c.get("status_explanation", ""),
             c["s3_read_write_resource"],
+            c["organization_id"],
+            c.get("curr_cluster_instance_id", ""),
+            c.get("num_sessions", 0),
+            c.get("num_workers_in_use", 0),
         )
         for (name, c) in response["clusters"].items()
     }

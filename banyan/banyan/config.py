@@ -124,7 +124,7 @@ def configure(
             raise Exception(
                 "Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml"
             )
-    if not existing_banyan_config == banyan_config:
+    if existing_banyan_config != banyan_config:
         write_config(banyanconfig_path)
 
     return banyan_config

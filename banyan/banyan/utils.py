@@ -46,12 +46,12 @@ def send_request_get_response(method: str, content: dict):
     api_key = configuration["banyan"]["api_key"]
 
     url = (BANYAN_API_ENDPOINT) + method_to_endpoint(method)
-    content["debug"] = True
+    content["debug"] = is_debug_on()
     headers = {
         "content-type": "application/json",
         "Username-APIKey": f"{user_id}-{api_key}",
     }
-    resp = requests.post(url=url, json=content, headers=headers)
+    resp = requests.post(url=url, json=content, headers=headers)  # , timeout=30)
     data = json.loads(resp.text)
     if resp.status_code == 403:
         raise Exception(
@@ -71,7 +71,8 @@ def send_request_get_response(method: str, content: dict):
 
 
 def is_debug_on():
-    return logging.DEBUG >= logging.root.level
+    return os.environ.get("PYTHON_DEBUG", "") == "Banyan"
+    # return logging.DEBUG >= logging.root.level
 
 
 def get_python_version():
