@@ -460,8 +460,6 @@ def print_session_logs(session_id, cluster_name, delete_file=True):
         obj = s3.get_object(Bucket=s3_bucket_name, Key=log_file_name)
         print(obj["Body"].read().decode("utf-8"))
     except Exception as e:
-        print("HI")
-        print(e)
         print(f"Could not print session logs for session with ID {session_id}")
         print(f"To download session logs, you can use `banyan.download_session_logs()`")
     if delete_file:
