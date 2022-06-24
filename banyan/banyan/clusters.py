@@ -1,3 +1,4 @@
+from math import ceil
 from tqdm import tqdm
 import urllib
 
@@ -8,6 +9,7 @@ from .utils import (
     send_request_get_response,
     get_aws_config_region,
     s3_bucket_arn_to_name,
+    parse_bytes
 )
 
 
@@ -24,6 +26,7 @@ def create_cluster(
     iam_policy_arn: str = None,
     s3_bucket_arn: str = None,
     s3_bucket_name: str = None,
+    disk_capacity = "1200 GiB", # some # of GBs or "auto" to use Amazon EFS
     scaledown_time: int = 25,
     region: str = None,
     vpc_id: str = None,
@@ -89,6 +92,11 @@ def create_cluster(
         "s3_read_write_resource": s3_bucket_arn,
         "scaledown_time": scaledown_time,
         "recreate": False,
+        # We need to pass in the disk capacity in # of GiB and we do this by dividing the input
+        # by size of 1 GiB and then round up. Then the backend will determine how to adjust the
+        # disk capacity to an allowable increment (e.g., 1200 GiB or an increment of 2400 GiB
+        # for AWS FSx Lustre filesystems)
+        "disk_capacity": -1 if (disk_capacity == "auto") else ceil(parse_bytes(disk_capacity) / 1.073741824e7)
     }
 
     if "ec2_key_pair_name" in c["aws"]:
