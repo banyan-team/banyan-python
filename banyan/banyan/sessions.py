@@ -4,10 +4,16 @@ import os
 from pygit2 import Repository
 import time
 from tqdm import tqdm
+from typing import List
 
 
 from .constants import BANYAN_PYTHON_BRANCH_NAME, BANYAN_PYTHON_PACKAGES
-from .clusters import get_running_clusters, get_cluster_s3_bucket_name, wait_for_cluster
+from .clusters import (
+    get_cluster,
+    get_running_clusters,
+    get_cluster_s3_bucket_name,
+    wait_for_cluster,
+)
 from .config import configure
 from .session import (
     get_session_id,
@@ -41,7 +47,7 @@ def start_session(
     files: list = None,
     code_files: list = None,
     force_update_files: bool = False,
-    pf_dispatch_table: list[str] = None,
+    pf_dispatch_table: List[str] = None,
     using_modules: list = None,
     # pip_requirements_file = None, # paths to a requirements.txt file that contains packages to be installed with pip
     # conda_environment_file = None, # paths to environment.yml file that contains packages to be installed with conda
@@ -99,13 +105,18 @@ def start_session(
             cluster_name = list(running_clusters.keys())[0]
     version = get_python_version()
 
+    c = get_cluster(cluster_name)
+
     session_configuration = {
         "cluster_name": cluster_name,
+        "organization_id": c.organization_id,
+        "curr_cluster_instance_id": c.curr_cluster_instance_id,
         "num_workers": nworkers,
         "release_resources_after": release_resources_after,
         "return_logs": print_logs,
         "store_logs_in_s3": store_logs_in_s3,
         "store_logs_on_cluster": store_logs_on_cluster,
+        "log_initialization": log_initialization,
         "version": version,
         "benchmark": os.environ.get("BANYAN_BENCHMARK", "0") == "1",
         "main_modules": get_loaded_packages(),
@@ -441,6 +452,20 @@ def download_session_logs(session_id, cluster_name, filename=None, *args, **kwar
     s3.download_file(s3_bucket_name, log_file_name, filename)
 
 
+def print_session_logs(session_id, cluster_name, delete_file=True):
+    s3 = boto3.client("s3")
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    log_file_name = f"banyan-log-for-session-{session_id}"
+    try:
+        obj = s3.get_object(Bucket=s3_bucket_name, Key=log_file_name)
+        print(obj["Body"].read().decode("utf-8"))
+    except Exception as e:
+        print(f"Could not print session logs for session with ID {session_id}")
+        print(f"To download session logs, you can use `banyan.download_session_logs()`")
+    if delete_file:
+        s3.delete_object(Bucket=s3_bucket_name, Key=log_file_name)
+
+
 def wait_for_session(session_id=None, *args, **kwargs):
     """Implements an algorithm to repeatedly get the session status and then wait for a
     period of time
@@ -500,6 +525,7 @@ def run_session(
     force_update_files=True,
     pf_dispatch_table=None,
     using_modules=None,
+    project_dir=None,
     url=None,
     branch=None,
     directory=None,
@@ -529,7 +555,13 @@ def run_session(
     if dev_paths is None:
         dev_paths = []
 
+    store_logs_in_s3_orig = store_logs_in_s3
+
     try:
+        if print_logs:
+            # If logs need to be printed, ensure that we save logs in S3. If
+            # store_logs_in_s3==False, then delete logs in S3 later
+            store_logs_in_s3 = True
         start_session(
             cluster_name=cluster_name,
             nworkers=nworkers,
@@ -544,6 +576,7 @@ def run_session(
             force_update_files=force_update_files,
             pf_dispatch_table=pf_dispatch_table,
             using_modules=using_modules,
+            project_dir=project_dir,
             url=url,
             branch=branch,
             directory=directory,
@@ -552,7 +585,7 @@ def run_session(
             force_pull=force_pull,
             force_install=force_install,
             estimate_available_memory=estimate_available_memory,
-            nowait=False,
+            nowait=False,  # Wait untile session is ready, since code files are running
             email_when_ready=email_when_ready,
             for_running=True,
         )
@@ -563,6 +596,10 @@ def run_session(
             session_id = None
         if session_id is not None:
             end_session(get_session_id(), failed=True)
+            if print_logs:
+                print_session_logs(
+                    session_id, cluster_name, delete_file=(not store_logs_in_s3_orig)
+                )
         raise
     finally:
         try:
@@ -571,3 +608,7 @@ def run_session(
             session_id = None
         if session_id is not None:
             end_session(get_session_id(), failed=False)
+            if print_logs:
+                print_session_logs(
+                    session_id, cluster_name, delete_file=(not store_logs_in_s3_orig)
+                )

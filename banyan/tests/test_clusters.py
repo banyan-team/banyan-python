@@ -22,7 +22,10 @@ def test_create_cluster_with_invalid_name():
 
 def test_create_delete_cluster():
 
-    cluster_name = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    cluster_name = "c" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=5)
+    )
+    print(cluster_name)
 
     cluster_object = create_cluster(
         name=cluster_name,
@@ -35,6 +38,6 @@ def test_create_delete_cluster():
 
     delete_cluster(cluster_name)
 
-    assert cluster_name in get_clusters()
+    assert cluster_name not in get_clusters()
 
-    assert not cluster_name in get_running_clusters()
+    assert not cluster_name not in get_running_clusters()

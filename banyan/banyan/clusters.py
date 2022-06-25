@@ -1,3 +1,4 @@
+from math import ceil
 from tqdm import tqdm
 import urllib
 
@@ -8,6 +9,7 @@ from .utils import (
     send_request_get_response,
     get_aws_config_region,
     s3_bucket_arn_to_name,
+    parse_bytes
 )
 
 
@@ -24,6 +26,7 @@ def create_cluster(
     iam_policy_arn: str = None,
     s3_bucket_arn: str = None,
     s3_bucket_name: str = None,
+    disk_capacity = "1200 GiB", # some # of GBs or "auto" to use Amazon EFS
     scaledown_time: int = 25,
     region: str = None,
     vpc_id: str = None,
@@ -89,6 +92,11 @@ def create_cluster(
         "s3_read_write_resource": s3_bucket_arn,
         "scaledown_time": scaledown_time,
         "recreate": False,
+        # We need to pass in the disk capacity in # of GiB and we do this by dividing the input
+        # by size of 1 GiB and then round up. Then the backend will determine how to adjust the
+        # disk capacity to an allowable increment (e.g., 1200 GiB or an increment of 2400 GiB
+        # for AWS FSx Lustre filesystems)
+        "disk_capacity": -1 if (disk_capacity == "auto") else ceil(parse_bytes(disk_capacity) / 1.073741824e7)
     }
 
     if "ec2_key_pair_name" in c["aws"]:
@@ -125,7 +133,7 @@ def delete_cluster(name: str, **kwargs):
     configure(**kwargs)
     logging.info(f"Deleting cluster named {name}")
     send_request_get_response(
-        "destroy-scluster", {"cluster_name": name, "permanently_delete": True}
+        "destroy-cluster", {"cluster_name": name, "permanently_delete": True}
     )
 
 
@@ -143,12 +151,24 @@ def assert_cluster_is_ready(name: str, **kwargs):
 
 class Cluster:
     def __init__(
-        self, name: str, status: str, status_explanation: str, s3_bucket_arn: str
+        self,
+        name: str,
+        status: str,
+        status_explanation: str,
+        s3_bucket_arn: str,
+        organization_id: str,
+        curr_cluster_instance_id: str,
+        num_sessions_running: int,
+        num_workers_running: int,
     ):
         self.name = name
         self.status = status
         self.status_explanation = status_explanation
         self.s3_bucket_arn = s3_bucket_arn
+        self.organization_id = organization_id
+        self.curr_cluster_instance_id = curr_cluster_instance_id
+        self.num_sessions_running = num_sessions_running
+        self.num_workers_running = num_workers_running
 
 
 def get_clusters(cluster_name=None, **kwargs):
@@ -161,8 +181,12 @@ def get_clusters(cluster_name=None, **kwargs):
         name: Cluster(
             name,
             c["status"],
-            c["status_explanation"] if "status_explanation" in c else "",
+            c.get("status_explanation", ""),
             c["s3_read_write_resource"],
+            c["organization_id"],
+            c.get("curr_cluster_instance_id", ""),
+            c.get("num_sessions", 0),
+            c.get("num_workers_in_use", 0),
         )
         for (name, c) in response["clusters"].items()
     }

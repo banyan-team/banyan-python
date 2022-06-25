@@ -2,10 +2,11 @@ import boto3
 from contextlib import nullcontext as does_not_raise
 
 import os
+from pygit2 import Repository
 import pytest
 import time
 
-
+from banyan.constants import BANYAN_PYTHON_BRANCH_NAME
 from banyan.clusters import get_cluster_s3_bucket_name
 from banyan.sessions import (
     get_session,
@@ -18,7 +19,11 @@ from banyan.sessions import (
     run_session,
 )
 
-TEST_BRANCH = "v22.05.14"
+TEST_BRANCH = (
+    Repository(".").head.shorthand
+    if os.getenv("BANYAN_TESTING", "0") == "1"
+    else BANYAN_PYTHON_BRANCH_NAME
+)
 
 
 @pytest.mark.parametrize(
@@ -45,6 +50,7 @@ def test_start_get_end_sessions():
         branch=TEST_BRANCH,
         directory="banyan-python/banyan",
         force_sync=(os.getenv("BANYAN_FORCE_SYNC") == "1"),
+        nowait=False,
     )
     running_sessions = get_running_sessions(cluster_name)
     all_sessions = get_sessions(cluster_name)
@@ -170,6 +176,7 @@ def test_start_end_multiple_sessions():
         store_logs_on_cluster=os.environ.get("BANYAN_STORE_LOGS_ON_CLUSTER", "0")
         == "1",
         release_resources_after=delay_time,
+        nowait=False,
     )
     resource_id_1 = get_session().resource_id
     session_status = get_session_status(session_id_1)
@@ -190,6 +197,7 @@ def test_start_end_multiple_sessions():
         store_logs_on_cluster=os.environ.get("BANYAN_STORE_LOGS_ON_CLUSTER", "0")
         == "1",
         release_resources_after=delay_time,
+        nowait=False,
     )
     resource_id_2 = get_session().resource_id
     session_status = get_session_status(session_id_2)
@@ -212,6 +220,7 @@ def test_start_end_multiple_sessions():
         store_logs_on_cluster=os.environ.get("BANYAN_STORE_LOGS_ON_CLUSTER", "0")
         == "1",
         release_resources_after=delay_time,
+        nowait=False,
     )
     resource_id_3 = get_session().resource_id
     session_status = get_session_status(session_id_3)
@@ -255,6 +264,7 @@ def test_start_session_with_invalid_branch_name():
             branch="nonexistant-branch",
             directory="banyan-python/banyan",
             force_sync=os.getenv("BANYAN_FORCE_SYNC") == "1",
+            nowait=False,
         )
     try:
         end_session(session_id, release_resources_now=True)

@@ -21,6 +21,22 @@ from typing import Dict
 
 s3_client = boto3.client("s3")
 
+byte_sizes = {
+    "kB": 10 ** 3,
+    "MB": 10 ** 6,
+    "GB": 10 ** 9,
+    "TB": 10 ** 12,
+    "PB": 10 ** 15,
+    "KiB": 2 ** 10,
+    "MiB": 2 ** 20,
+    "GiB": 2 ** 30,
+    "TiB": 2 ** 40,
+    "PiB": 2 ** 50,
+    "B": 1,
+    "": 1,
+}
+byte_sizes = {k.lower(): v for (k, v) in byte_sizes.items()}
+
 
 def get_aws_config_region():
     return s3_client.meta.region_name
@@ -40,18 +56,48 @@ def s3_bucket_arn_to_name(s3_bucket_arn: str):
     return s3_bucket_name
 
 
+def parse_bytes(s:str):
+    s = s.replace(" ", "")
+    if not any([char.isdigit() for char in s]):
+        s = "1" + s
+
+    index = -1
+    for i in range(len(s)):
+        if not s[i].isalpha():
+            index = i + 1
+            break
+
+    prefix = s[:index]
+    suffix = s[index:]
+
+    n = -1
+    try:
+        n = float(prefix)
+    except:
+        raise ValueError(f"Could not interpret {prefix} as a number")
+
+    multiplier = -1
+    try:
+        multiplier = byte_sizes[suffix.lower()]
+    except:
+        raise ValueError(f"Could not interpret {suffix} as a byte unit")
+
+    result = n * multiplier
+    return result
+
+
 def send_request_get_response(method: str, content: dict):
     configuration = load_config()
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
 
     url = (BANYAN_API_ENDPOINT) + method_to_endpoint(method)
-    content["debug"] = True
+    content["debug"] = is_debug_on()
     headers = {
         "content-type": "application/json",
         "Username-APIKey": f"{user_id}-{api_key}",
     }
-    resp = requests.post(url=url, json=content, headers=headers)
+    resp = requests.post(url=url, json=content, headers=headers)  # , timeout=30)
     data = json.loads(resp.text)
     if resp.status_code == 403:
         raise Exception(
@@ -71,7 +117,8 @@ def send_request_get_response(method: str, content: dict):
 
 
 def is_debug_on():
-    return logging.DEBUG >= logging.root.level
+    return os.environ.get("PYTHON_DEBUG", "") == "Banyan"
+    # return logging.DEBUG >= logging.root.level
 
 
 def get_python_version():
