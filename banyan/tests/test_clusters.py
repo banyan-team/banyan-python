@@ -38,6 +38,15 @@ def test_create_delete_cluster():
 
     delete_cluster(cluster_name)
 
+<<<<<<< HEAD
     assert cluster_name not in get_clusters()
+=======
+    # assert not cluster_name in get_running_clusters()
+
+def test_get_clusters():
+    #  cluster_name = os.environ['BANYAN_CLUSTER_NAME']
+    print("here")
+    print(get_clusters())   
+>>>>>>> 90ee8b9 (first draft of locations.py)
 
     assert not cluster_name not in get_running_clusters()
