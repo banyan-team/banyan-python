@@ -538,7 +538,11 @@ def CopyToClient(
         send_to_client(loc_params["value_id"], part)
 
 
+<<<<<<< HEAD
 def CopyToPython(
+=======
+def CopyToJulia(
+>>>>>>> 1aa2929 (Add pfs and annotation api)
     src,
     part,
     params,
@@ -592,7 +596,11 @@ def reduce_in_memory(src, part, op: Callable):
     return op(src, part)
 
 
+<<<<<<< HEAD
 def ReduceAndCopyToPython(
+=======
+def ReduceAndCopyToJulia(
+>>>>>>> 1aa2929 (Add pfs and annotation api)
     src,
     part,
     params: Dict[str, Any],
@@ -614,7 +622,11 @@ def ReduceAndCopyToPython(
         if loc_name != "Memory":
             # We use 1 here so that it is as if we are copying from the head
             # node
+<<<<<<< HEAD
             CopyToPython(src, src, params, 1, 1, comm, loc_name, loc_params)
+=======
+            CopyToJulia(src, src, params, 1, 1, comm, loc_name, loc_params)
+>>>>>>> 1aa2929 (Add pfs and annotation api)
 
     # TODO: Ensure we don't have issues where with batched execution we are
     # merging to the thing we are splitting from
@@ -627,7 +639,11 @@ def ReduceAndCopyToPython(
     return src
 
 
+<<<<<<< HEAD
 def ReduceAndCopyToPython(
+=======
+def ReduceAndCopyToJulia(
+>>>>>>> 1aa2929 (Add pfs and annotation api)
     src,
     part,
     params: Dict[str, Any],
@@ -638,12 +654,20 @@ def ReduceAndCopyToPython(
     loc_params: Dict[str, Any],
 ):
     op = get_op(params)
+<<<<<<< HEAD
     return ReduceAndCopyToPython(
+=======
+    return ReduceAndCopyToJulia(
+>>>>>>> 1aa2929 (Add pfs and annotation api)
         src, part, params, batch_idx, nbatches, comm, loc_name, loc_params, op
     )
 
 
+<<<<<<< HEAD
 ReduceWithKeyAndCopyToPython = ReduceAndCopyToPython
+=======
+ReduceWithKeyAndCopyToJulia = ReduceAndCopyToJulia
+>>>>>>> 1aa2929 (Add pfs and annotation api)
 
 
 def Divide(
@@ -726,7 +750,11 @@ def DivideFromDisk(
     loc_name: str,
     loc_params: Dict[str, Any],
 ):
+<<<<<<< HEAD
     part = CopyFromPython(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+=======
+    part = CopyFromJulia(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+>>>>>>> 1aa2929 (Add pfs and annotation api)
     return Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
 
 
