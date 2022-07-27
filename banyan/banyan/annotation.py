@@ -1001,10 +1001,9 @@ def get_samples(ufs: List[Future]):
 def partitioned_code_region(
     variables: list,  # TODO: List[Expr]
     variable_names: List[str],
-    code,  # TODO: Expr
-    assigning_samples: list,  # TODO: List[Expr]
+    code_string,
+    f,
 ):
-    code_string = code
 
     # What are splatted futures? This is basically the concept that you might
     # have a variable-length list of futures that you need to pass into an
@@ -1027,11 +1026,23 @@ def partitioned_code_region(
     )
     splatted_futures = get_splatted_futures(unsplatted_futures)
 
-    unsplatted_variable_names = []  # TODO: Implement this
+    
+    # Construct assigning_samples (skip for now)
+    assigning_samples = [
+        get_samples(unsplatted_futures[i]),
+        for i in range(len(variables))
+    ]
 
     prepare_task_for_partitioned_code_region(
-        unsplatted_futures, unsplatted_variable_names, splatted_futures, code
+        unsplatted_futures, variable_names, splatted_futures, code_string
     )
+
+    try:
+        f(*assigning_samples)
+        reassign_futures(unsplatted_futures, variables)
+    except:
+        finish_task()
+        raise
 
     finish_partitioned_code_region(splatted_futures)
 
@@ -1042,7 +1053,7 @@ def partitioned_code_region(
 #   def f(fut, res):
 #       res = copy(fut)
 def partitioned(*args):
-    # Load in variables and code
+    # Load in variables
     variables = args
     variable_names = [
         var_name
@@ -1050,21 +1061,24 @@ def partitioned(*args):
         if var_val in args
     ]
 
-    # TODO: Construct assigning_samples (skip for now)
-    assigning_samples = []
-
     def inner(f):
         # Load code as string
         i = inspect.getsource(f).index(":\n")
         code = dedent(inspect.getsource(f)[i + 1 :])
 
+        # Wrap function so that it returns arguments
+        def f_(*args_):
+            f(*args_)
+            return args_
+
         res = partitioned_code_region(
             variables,
             variable_names,
             code,
-            assigning_samples,
+            f_,
         )
-        return f
+
+        return f_
 
     return inner
 
