@@ -1,8 +1,11 @@
 from samples import sample_memory_usage
 from session import get_session
 
+
 class Sample:
-    def __init__(self, value = None, memory_usage = None, rate = None):
+    # TODO: Consider using @dispatch from plum to create multiple separate
+    # constructors, like in the Julia library, for improved readability
+    def __init__(self, value=None, memory_usage=None, rate=None):
         self.groupingkeys = []
         self.value = value
         self.objectid = hash(value)
@@ -20,6 +23,3 @@ class Sample:
         else:
             self.memory_usage = memory_usage
             self.rate = rate
-
-       
-        
