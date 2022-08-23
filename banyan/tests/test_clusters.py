@@ -38,6 +38,4 @@ def test_create_delete_cluster():
 
     delete_cluster(cluster_name)
 
-    assert cluster_name not in get_clusters()
-
     assert not cluster_name not in get_running_clusters()
