@@ -71,7 +71,7 @@ class PartitionType:
                 elif isinstance(arg, PartitioningConstraint):
                     arg.append(constraints.constraints)
                 # TODO - figure out func
-                elif isinstance(callable(arg)):
+                elif callable(arg):
                     PartitioningConstraintFunction(arg).append(constraints.constraints)
                 else:
                     raise Exception(

@@ -12,6 +12,29 @@ from utils import total_memory_usage
 # Sample that caches properties returned by an AbstractSample #
 ###############################################################
 
+# Implementation error
+def impl_error(fn_name, type_as):
+    raise (f"{fn_name} not implemented for {type(type_as)}")
+
+
+# Functions to implement for Any (e.g., for DataFrame or Array
+
+
+def sample_by_key(type_as: Any, key: Any):
+    impl_error("sample_by_key", type_as)
+
+
+def sample_axes(type_as: Any) -> List[int]:
+    impl_error("sample_axes", type_as)
+
+
+def sample_keys(type_as: Any):
+    impl_error("sample_keys", type_as)
+
+
+def sample_memory_usage(type_as: Any) -> int:
+    return total_memory_usage(type_as)
+
 
 @dispatch
 def ExactSample(value: Any):
@@ -37,32 +60,57 @@ def setsample(fut: Future, value: Any):
 
 # TODO: Lazily compute samples by storing sample computation in a DAG if its
 # getting too expensive
-def sample(fut):
+def sample(fut: Future):
     return get_location(fut).sample.value
 
 
-# Implementation error
-def impl_error(fn_name, type_as):
-    raise (f"{fn_name} not implemented for {type(type_as)}")
+class SampleComputationCache:
+    def __init__(self, computation: Dict[int, Any], same_keys: Dict[int, List[int]]):
+        self.computation = computation
+        self.same_keys = same_keys
 
 
-# Functions to implement for Any (e.g., for DataFrame or Array
+sample_computation_cache = SampleComputationCache({}, {})
 
 
-def sample_by_key(type_as: Any, key: Any):
-    return impl_error("sample_by_key", type_as)
+def get_sample_computation_cache() -> SampleComputationCache:
+    global sample_computation_cache
+    return sample_computation_cache
 
 
-def sample_axes(type_as: Any) -> List[int]:
-    return impl_error("sample_axes", type_as)
+def insert_in_sample_computation_cache(
+    cache: SampleComputationCache, key: int, other_key: int
+):
+    if key not in cache.same_keys:
+        cache.same_keys[key] = [key, other_key]
+    else:
+        cache.same_keys[key].append(other_key)
 
 
-def sample_keys(type_as: Any):
-    return impl_error("sample_keys", type_as)
+def get_key_for_sample_computation_cache(
+    cache: SampleComputationCache, key: int
+) -> int:
+    if key not in cache.same_keys:
+        cache.same_keys[key] = [key]
+        return 0
+
+    for other_key in cache.same_keys[key]:
+        if other_key in cache.computation:
+            return other_key
+    return 0
 
 
-def sample_memory_usage(type_as: Any) -> int:
-    return total_memory_usage(type_as)
+def keep_same_statistics(a: Future, a_key: Any, b: Future, b_key: Any):
+    cache = get_sample_computation_cache()
+    # Note that this runs after all samples have been computed so the objectid's
+    # of the values should be right.
+    a_objectid: int = get_location(a).sample.objectid
+    b_objectid: int = get_location(b).sample.objectid
+    for computation_func in ["sample_divisions", "orderinghashes"]:
+        a_cache_key = hash((computation_func, a_objectid, a_key))
+        b_cache_key = hash((computation_func, b_objectid, b_key))
+        insert_in_sample_computation_cache(cache, a_cache_key, b_cache_key)
+        insert_in_sample_computation_cache(cache, b_cache_key, a_cache_key)
 
 
 # Sample computation functions
@@ -139,11 +187,11 @@ def sample_percentile(df: Any, key: Any, minvalue: float, maxvalue: float) -> fl
     # call sample_divisions with a reasonable number of divisions and then counting how many
     # divisions the range actually belongs to.
 
-    c: int = 0
-    num_rows: int = 0
+    c = 0
+    num_rows = 0
     ohs = orderinghashes(df, key)
     for oh in ohs:
-        if minvalue <= oh and oh <= maxvalue:
+        if (minvalue <= oh) and (oh <= maxvalue):
             c += 1
         num_rows += 1
     return c / num_rows
@@ -231,52 +279,3 @@ def sample_for_grouping(f: Future, key: Any):
 @dispatch
 def sample_for_grouping(f: Future):
     return sample_for_grouping(f, int)
-
-
-class SampleComputationCache:
-    def __init__(self, computation: Dict[int, Any], same_keys: Dict[int, List[int]]):
-        self.computation = computation
-        self.same_keys = same_keys
-
-
-sample_computation_cache = SampleComputationCache({}, {})
-
-
-def get_sample_computation_cache() -> SampleComputationCache:
-    global sample_computation_cache
-    return sample_computation_cache
-
-
-def insert_in_sample_computation_cache(
-    cache: SampleComputationCache, key: int, other_key: int
-):
-    if key not in cache.same_keys:
-        cache.same_keys[key] = [key, other_key]
-    else:
-        cache.same_keys[key].append(other_key)
-
-
-def get_key_for_sample_computation_cache(
-    cache: SampleComputationCache, key: int
-) -> int:
-    if key not in cache.same_keys:
-        cache.same_keys[key] = [key]
-        return 0
-
-    for other_key in cache.same_keys[key]:
-        if other_key in cache.computation:
-            return other_key
-    return 0
-
-
-def keep_same_statistics(a: Future, a_key: Any, b: Future, b_key: Any):
-    cache = get_sample_computation_cache()
-    # Note that this runs after all samples have been computed so the objectid's
-    # of the values should be right.
-    a_objectid: int = get_location(a).sample.objectid
-    b_objectid: int = get_location(b).sample.objectid
-    for computation_func in ["sample_divisions", "orderinghashes"]:
-        a_cache_key = hash((computation_func, a_objectid, a_key))
-        b_cache_key = hash((computation_func, b_objectid, b_key))
-        insert_in_sample_computation_cache(cache, a_cache_key, b_cache_key)
-        insert_in_sample_computation_cache(cache, b_cache_key, a_cache_key)
