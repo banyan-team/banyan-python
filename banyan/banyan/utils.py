@@ -19,6 +19,7 @@ from .config import load_config
 from datetime import datetime
 from typing import Dict
 
+
 s3_client = boto3.client("s3")
 
 byte_sizes = {
@@ -56,7 +57,7 @@ def s3_bucket_arn_to_name(s3_bucket_arn: str):
     return s3_bucket_name
 
 
-def parse_bytes(s:str):
+def parse_bytes(s: str):
     s = s.replace(" ", "")
     if not any([char.isdigit() for char in s]):
         s = "1" + s
