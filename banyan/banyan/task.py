@@ -80,7 +80,7 @@ class DelayedTask:
             [],
             [],
             [],
-            []
+            [],
         )
 
     def to_py(self):

@@ -252,3 +252,24 @@ def from_py_value_contents(py_value_contents):
     # else
     #     res
     # end
+
+
+def indexapply():
+    # TODO: Implement
+    pass
+
+
+class Empty:
+    pass
+
+
+def empty_handler(f):
+    def handler(a, b):
+        if isinstance(a, Empty):
+            return b
+        elif isinstance(b, Empty):
+            return a
+        else:
+            return f(a, b)
+
+    return handler
