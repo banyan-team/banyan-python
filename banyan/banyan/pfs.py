@@ -1,14 +1,18 @@
 from copy import copy, deepcopy
 from functools import reduce
+import logging
 import pickle
 from typing import Any, Callable, Dict, NoneType, Union
 
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    logging.warning("mpi4py cannot be initialized because MPI is not installed")
 from plum import dispatch
 
-from queues import receive_from_client, send_to_client
-from utils import Empty, empty_handler, indexapply
-from utils_pfs import (
+from .queues import receive_from_client, send_to_client
+from .utils import Empty, empty_handler, indexapply
+from .utils_pfs import (
     find_worker_idx_where,
     gather_across,
     getpath,

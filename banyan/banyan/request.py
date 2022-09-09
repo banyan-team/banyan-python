@@ -1,8 +1,6 @@
-from typing import Union
-
-from locations import Location
-from partitions import ValueId
-from task import DelayedTask
+from .id import ValueId
+from .location import Location
+from .task import DelayedTask
 
 
 class Request:

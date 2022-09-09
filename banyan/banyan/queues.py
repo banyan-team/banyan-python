@@ -3,10 +3,9 @@ from datetime import datetime
 import json
 from typing import Any, Dict, Tuple
 
-from id import generate_message_id, ResourceId
-from sessions import get_session, get_session_id, end_session
-from utils import from_py_value_contents, to_py_value_contents
-from utils_pfs import from_py_value_contents
+from .id import generate_message_id, ResourceId
+from .sessions import get_session, get_session_id, end_session
+from .utils import from_py_value_contents, to_py_value_contents
 
 sqs = boto3.client("sqs")
 

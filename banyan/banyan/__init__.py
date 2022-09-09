@@ -1,6 +1,7 @@
 __version__ = "0.1.1"
 
-from .imports import *
+import boto3
+import logging
 
 # Check if AWS region is set. If not, default to us-west-2 and give a warning
 if boto3.Session().region_name == None:
@@ -30,6 +31,7 @@ from .clusters import (
 )
 from .config import load_config, write_config, configure
 from .id import generate_message_id
+from .locations import Client
 from .queues import (
     get_scatter_queue,
     get_gather_queue,

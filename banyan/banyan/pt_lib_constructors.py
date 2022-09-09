@@ -4,11 +4,11 @@ from typing import Callable, Dict, List, Union
 
 from plum import dispatch
 
-from future import Future
-from futures import get_location
-from partitions import AtMost, Scale
-from sample import Sample
-from samples import (
+from .future import Future
+from .futures import get_location
+from .partitions import AtMost, Scale
+from .sample import Sample
+from .samples import (
     sample,
     sample_axes,
     sample_divisions,
@@ -18,8 +18,8 @@ from samples import (
     sample_min,
     sample_percentile,
 )
-from utils import to_py_value
-from utils_partitions import PartitionType
+from .utils import to_py_value
+from .utils_partitions import PartitionType
 
 
 def noscale(f):

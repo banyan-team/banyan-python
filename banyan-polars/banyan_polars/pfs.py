@@ -1,13 +1,16 @@
 import concurrent.futures
 from copy import deepcopy
-from copyreg import dispatch_table
+import logging
 from math import ceil
 from operator import itemgetter
 import os
 from shutil import copyfile
 from typing import Any, Dict, Union
 
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    logging.warning("mpi4py cannot be initialized because MPI is not installed")
 import polars as pl
 
 from banyan import (

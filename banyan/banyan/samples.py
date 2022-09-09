@@ -3,10 +3,10 @@ from typing import Any, Dict, List, Tuple
 
 from plum import dispatch
 
-from future import Future
-from locations import get_location
-from sample import Sample
-from utils import total_memory_usage
+from .future import Future
+from .locations import get_location
+from .sample import Sample
+from .utils import total_memory_usage
 
 ###############################################################
 # Sample that caches properties returned by an AbstractSample #
@@ -32,13 +32,9 @@ def sample_keys(type_as: Any):
     impl_error("sample_keys", type_as)
 
 
-def sample_memory_usage(type_as: Any) -> int:
-    return total_memory_usage(type_as)
-
-
 @dispatch
 def ExactSample(value: Any):
-    return Sample(value, sample_memory_usage(value), 1)
+    return Sample(value, total_memory_usage(value), 1)
 
 
 @dispatch
@@ -48,7 +44,7 @@ def ExactSample(value: Any, memory_usage: int):
 
 def setsample(fut: Future, value: Any):
     s: Sample = get_location(fut).sample
-    memory_usage: int = sample_memory_usage(value)
+    memory_usage: int = total_memory_usage(value)
     rate: int = s.rate
     s.value = value
     s.memory_usage = memory_usage
@@ -156,7 +152,7 @@ def sample_divisions(df: Any, key: Any):
     cache = get_sample_computation_cache()
     cache_key = hash(("sample_divisions", id(df), key))
     in_cache = get_key_for_sample_computation_cache(cache, cache_key)
-    if in_cache is not 0:
+    if in_cache != 0:
         return cache.computation[in_cache]
 
     # There are no divisions for empty data

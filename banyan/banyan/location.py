@@ -1,8 +1,9 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from plum import dispatch
 
-from sample import Sample
+from .sample import Sample
+
 
 LocationParameters = Dict[str, Any]
 
@@ -36,8 +37,10 @@ class Location:
         name: str,
         parameters: LocationParameters,
         total_memory_usage: int = -1,
-        sample: Sample = Sample(),
+        sample: Optional[Sample] = None,
     ):
+        if sample is None:
+            sample = Sample()
         self.__init__(
             name, name, parameters, parameters, total_memory_usage, sample, False, False
         )

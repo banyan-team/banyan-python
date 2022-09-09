@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any, Callable, Dict, List, Tuple, Union
 
-from annotation import (
+from .annotation import (
     apply_default_constraints,
     apply_mutation,
     apply_partitioned_using_func,
@@ -16,16 +16,16 @@ from annotation import (
     pt,
     set_task,
 )
-from future import destroy_future, Future, isview, value_id_getter
-from id import (
+from .future import Future
+from .id import (
     get_num_bang_values_issued,
     ResourceId,
     SessionId,
     set_num_bang_values_issued,
     ValueId,
 )
-from location import Location
-from locations import (
+from .location import Location
+from .locations import (
     Client,
     destined,
     Disk,
@@ -34,26 +34,26 @@ from locations import (
     NOTHING_LOCATION,
     sourced,
 )
-from partitions import NOTHING_PARTITIONED_USING_FUNC
-from pfs import forget_parents
-from pt_lib_constructors import Replicated
-from queues import (
+from .partitions import NOTHING_PARTITIONED_USING_FUNC
+from .pfs import forget_parents
+from .pt_lib_constructors import Replicated
+from .queues import (
     get_gather_queue,
     get_scatter_queue,
     receive_next_message,
     send_message,
 )
-from request import DestroyRequest, RecordTaskRequest, Request
-from session import Session
-from sessions import (
+from .request import DestroyRequest, RecordTaskRequest, Request
+from .session import Session
+from .sessions import (
     end_session,
     get_session,
     get_sessions_dict,
     get_session_id,
     wait_for_session,
 )
-from task import DelayedTask
-from utils import (
+from .task import DelayedTask
+from .utils import (
     from_py_value_contents,
     send_request_get_response,
     get_loaded_packages,
@@ -115,6 +115,11 @@ def check_worker_stuck(
 #############################
 # Basic methods for futures #
 #############################
+
+
+def destroy_future(fut: Future):
+    record_request(DestroyRequest(fut.value_id))
+
 
 destroyed_value_ids: List[ValueId] = []
 

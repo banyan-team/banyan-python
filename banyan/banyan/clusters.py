@@ -1,15 +1,19 @@
+import logging
 from math import ceil
+import os
 from tqdm import tqdm
 import urllib
 
+import boto3
+
+from .cluster import Cluster
 from .config import configure
-from .imports import *
 from .session import get_cluster_name
 from .utils import (
     send_request_get_response,
     get_aws_config_region,
     s3_bucket_arn_to_name,
-    parse_bytes
+    parse_bytes,
 )
 
 
@@ -26,7 +30,7 @@ def create_cluster(
     iam_policy_arn: str = None,
     s3_bucket_arn: str = None,
     s3_bucket_name: str = None,
-    disk_capacity = "1200 GiB", # some # of GBs or "auto" to use Amazon EFS
+    disk_capacity="1200 GiB",  # some # of GBs or "auto" to use Amazon EFS
     scaledown_time: int = 25,
     region: str = None,
     vpc_id: str = None,
@@ -96,7 +100,9 @@ def create_cluster(
         # by size of 1 GiB and then round up. Then the backend will determine how to adjust the
         # disk capacity to an allowable increment (e.g., 1200 GiB or an increment of 2400 GiB
         # for AWS FSx Lustre filesystems)
-        "disk_capacity": -1 if (disk_capacity == "auto") else ceil(parse_bytes(disk_capacity) / 1.073741824e7)
+        "disk_capacity": -1
+        if (disk_capacity == "auto")
+        else ceil(parse_bytes(disk_capacity) / 1.073741824e7),
     }
 
     if "ec2_key_pair_name" in c["aws"]:
@@ -147,28 +153,6 @@ def assert_cluster_is_ready(name: str, **kwargs):
     logging.info(f"Setting status of cluster named {name} to running")
     configure(**kwargs)
     send_request_get_response("set-cluster-ready", {"cluster_name": name})
-
-
-class Cluster:
-    def __init__(
-        self,
-        name: str,
-        status: str,
-        status_explanation: str,
-        s3_bucket_arn: str,
-        organization_id: str,
-        curr_cluster_instance_id: str,
-        num_sessions_running: int,
-        num_workers_running: int,
-    ):
-        self.name = name
-        self.status = status
-        self.status_explanation = status_explanation
-        self.s3_bucket_arn = s3_bucket_arn
-        self.organization_id = organization_id
-        self.curr_cluster_instance_id = curr_cluster_instance_id
-        self.num_sessions_running = num_sessions_running
-        self.num_workers_running = num_workers_running
 
 
 def get_clusters(cluster_name=None, **kwargs):

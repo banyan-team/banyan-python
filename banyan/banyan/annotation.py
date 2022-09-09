@@ -3,21 +3,21 @@ import inspect
 import logging
 from math import ceil
 from textwrap import dedent
-from typing import Any, Dict, List, NoneType, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 from plum import dispatch
 
-from future import Future, is_total_memory_usage_known
-from futures import get_location
-from locations import apply_sourced_or_destined_funcs
-from partitions import Cross, Match, MatchOn
-from request import DestroyRequest, RecordTaskRequest
-from requests import record_request
-from sample import Sample
-from samples import keep_same_statistics, sample, sample_keys, set_sample
-from sessions import get_session
-from task import DelayedTask
-from utils_partitions import (
+from .future import Future, is_total_memory_usage_known
+from .futures import get_location
+from .locations import apply_sourced_or_destined_funcs
+from .partitions import Cross, Match, MatchOn
+from .request import RecordTaskRequest
+from .requests import record_request
+from .sample import Sample
+from .samples import keep_same_statistics, sample, sample_keys, set_sample
+from .sessions import get_session
+from .task import DelayedTask
+from .utils_partitions import (
     PartitionAnnotation,
     PartitionType,
     PartitioningConstraint,
@@ -434,8 +434,8 @@ def partitioned_with(
     # Keys (not relevant if you never use grouped partitioning).
     grouped: List[Future] = [],
     keep_same_keys: bool = False,
-    keys: Union[list, NoneType] = None,
-    keys_by_future: Union[List[Tuple[Future, list]], NoneType] = None,
+    keys: list = None,
+    keys_by_future: List[Tuple[Future, list]] = None,
     renamed: bool = False,
     # Asserts that output has a unique partitioning compared to inputs
     # (not relevant if you never have unbalanced partitioning)
@@ -573,7 +573,7 @@ def pt(
     # cross = nothing
     # args::Union{Future,PartitionType,PartitionTypeComposition,Vector{PartitionType}}...;
     *args,
-    match: Union[NoneType, Future] = None,
+    match: Future = None,
     on: Union[str, List[str]] = [],
     cross: List[Future] = []
     # args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Vector{PartitionType}}...;
@@ -896,7 +896,7 @@ def finish_partitioned_code_region(splatted_futures: List[Future]):
             if fut_value_id == f.value_id:
                 is_fut_to_be_used = True
         if is_fut_used and (not is_fut_to_be_used):
-            record_request(DestroyRequest(fut.value_id))
+            destroy_future(fut)
 
     # Record request to record task in backend's dependency graph and reset
     record_request(RecordTaskRequest(task))
@@ -1026,11 +1026,9 @@ def partitioned_code_region(
     )
     splatted_futures = get_splatted_futures(unsplatted_futures)
 
-    
     # Construct assigning_samples (skip for now)
     assigning_samples = [
-        get_samples(unsplatted_futures[i]),
-        for i in range(len(variables))
+        get_samples(unsplatted_futures[i]) for i in range(len(variables))
     ]
 
     prepare_task_for_partitioned_code_region(

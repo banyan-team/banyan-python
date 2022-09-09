@@ -1,29 +1,32 @@
 from copy import deepcopy
 import math
+import numpy as np
 import os
 from pathlib import Path
 import random
 import shutil
 from typing import Any, Callable, Dict, List
 
-from clusters import get_cluster_s3_bucket_name
-from future import Future
-from futures import get_location
-from id import ValueId
-from location import LocationParameters, Location
-from request import RecordLocationRequest
-from requests import offloaded, record_request
-from sample import Sample
-from samples import ExactSample, NOTHING_SAMPLE
-from session import get_session, get_session_id
-from utils import (
+import numpy as np
+
+from .clusters import get_cluster_s3_bucket_name
+from .future import Future
+from .futures import get_location
+from .id import ValueId
+from .location import LocationParameters, Location
+from .request import RecordLocationRequest
+from .requests import offloaded, record_request
+from .sample import Sample
+from .samples import ExactSample, NOTHING_SAMPLE
+from .session import get_session, get_session_id
+from .utils import (
     deserialize_retry,
     get_python_version,
     indexapply,
     serialize,
     total_memory_usage,
 )
-from utils_pfs import to_py_value
+from .utils_pfs import to_py_value
 
 #################
 # Location type #
@@ -501,16 +504,15 @@ def cache_location(
 
 def sample_from_range(r, sample_rate):
     # TODO: Maybe return whole range if sample rate is 1
-    len = len(r)
+    length = len(r)
     sample_len = int(math.ceil(len / sample_rate))
-    rand_indices = randsubseq(
-        range(len), 1 / sample_rate
-    )  # TODO: Not sure how to do this
+    mask = np.random.binomial(1, 1 / sample_rate, length)
+    rand_indices = np.arange(length)[mask.astype("bool")].tolist()
     if len(rand_indices) > sample_len:
-        rand_indices = rand_indices[1:sample_len]
+        rand_indices = rand_indices[:sample_len]
     else:
         while len(rand_indices) < sample_len:
-            new_index = random.randrange(1, sample_len)
+            new_index = random.randrange(0, sample_len)
             if new_index not in rand_indices:
                 rand_indices.append(new_index)
 

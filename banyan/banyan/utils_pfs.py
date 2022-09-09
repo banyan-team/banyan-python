@@ -1,12 +1,16 @@
 from copy import copy, deepcopy
+import logging
 from math import ceil
 from typing import List
 
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    logging.warning("mpi4py cannot be initialized because MPI is not installed")
 import urllib
 
-from locations import get_remotepath_id
-from session import get_session
+from .locations import get_remotepath_id
+from .session import get_session
 
 ####################
 # Helper functions #

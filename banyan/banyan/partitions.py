@@ -3,9 +3,9 @@ from typing import Union, List
 
 from plum import dispatch
 
-from future import Future
-from utils import parse_bytes
-from utils_partitions import (
+from .future import Future
+from .utils import parse_bytes
+from .utils_partitions import (
     PartitioningConstraintOverGroup,
     PartitionType,
     PartitioningConstraints,

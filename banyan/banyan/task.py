@@ -2,10 +2,10 @@ from typing import Callable, Dict, List, Tuple
 
 from plum import dispatch
 
-from future import Future
-from id import ValueId
-from partitions import NOTHING_PARTITIONED_USING_FUNC
-from utils_partitions import (
+from .future import Future
+from .id import ValueId
+from .partitions import NOTHING_PARTITIONED_USING_FUNC
+from .utils_partitions import (
     PartitionAnnotation,
     PartitionedUsingFunc,
     PartitioningConstraint,

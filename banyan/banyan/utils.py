@@ -1,7 +1,5 @@
-from .constants import BANYAN_API_ENDPOINT
-
-import boto3
 import codecs
+from datetime import datetime
 import hashlib
 import inspect
 import json
@@ -9,15 +7,17 @@ import logging
 import os
 import pickle
 import platform
+import sys
+from typing import Any, Dict
+
+import boto3
+from botocore.exceptions import ClientError
 import pytz
 import requests
 import toml
 
-
-from botocore.exceptions import ClientError
 from .config import load_config
-from datetime import datetime
-from typing import Dict
+from .constants import BANYAN_API_ENDPOINT
 
 
 s3_client = boto3.client("s3")
@@ -85,6 +85,15 @@ def parse_bytes(s: str):
 
     result = n * multiplier
     return result
+
+
+def total_memory_usage(val: Any) -> int:
+    # size = Base.summarysize(val)  # TODO: Find python equivalent
+    size = sys.getsizeof(val)
+    # TODO: Maybe make this larger
+    if size <= 128:
+        return 0
+    return size
 
 
 def send_request_get_response(method: str, content: dict):

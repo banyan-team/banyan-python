@@ -1,4 +1,5 @@
 import itertools
+import logging
 from math import ceil
 import os
 import random
@@ -31,7 +32,10 @@ from banyan import (
     total_memory_usage,
 )
 
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    logging.warning("mpi4py cannot be initialized because MPI is not installed")
 import polars as pl
 import pyarrow as pa
 

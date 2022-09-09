@@ -10,11 +10,11 @@
 from copy import deepcopy
 from typing import Any
 
-from annotation import mutated
-from future import create_future, Future, NOTHING_FUTURE
-from id import generate_value_id
-from location import Location
-from locations import (
+from .annotation import mutated
+from .future import Future, NOTHING_FUTURE
+from .id import generate_value_id, ValueId
+from .location import Location
+from .locations import (
     Client,
     destined,
     located,
@@ -23,9 +23,19 @@ from locations import (
     sourced,
     Value,
 )
-from partitions import ValueId
-from session import get_session
-from utils import total_memory_usage
+from .session import get_session
+from .utils import total_memory_usage
+
+
+def create_future(
+    datatype: str, value: Any, value_id: ValueId, mutated: bool, stale: bool
+):
+    new_future = Future(datatype, value, value_id, mutated, stale, -1)
+    return new_future
+
+
+def value_id_getter(f):
+    return f.value_id
 
 
 def get_location(o) -> Location:
@@ -37,7 +47,7 @@ def get_location(o) -> Location:
 
 def create_new_future(source: Location, mutate_from: Future, datatype: str):
     # Generate new value id
-    value_id: ValueId = generate_value_id()
+    value_id = generate_value_id()
 
     # Create new Future and assign a location to it
     new_future = create_future(datatype, None, value_id, False, True)

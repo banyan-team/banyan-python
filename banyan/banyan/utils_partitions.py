@@ -2,8 +2,8 @@ from typing import Any, Dict, List, Tuple
 
 from plum import dispatch
 
-from future import Future
-from id import generate_bang_value, ValueId
+from .future import Future
+from .id import generate_bang_value, ValueId
 
 
 PartitionTypeReference = Tuple[ValueId, int]
