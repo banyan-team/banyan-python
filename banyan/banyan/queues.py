@@ -1,11 +1,12 @@
 import boto3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import json
 from typing import Any, Dict, Tuple
 
 from .id import generate_message_id, ResourceId
 from .sessions import get_session, get_session_id, end_session
-from .utils import from_py_value_contents, to_py_value_contents
+from .utils import from_py_string, to_py_string
 
 sqs = boto3.client("sqs")
 
@@ -14,28 +15,16 @@ sqs = boto3.client("sqs")
 #################
 
 
-def get_scatter_queue(resource_id=None):
-    if resource_id is None:
-        resource_id = get_session().resource_id
-    return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_scatter.fifo")[
-        "QueueUrl"
-    ]
+def scatter_queue_url():
+    return get_session().scatter_queue_url
 
 
-def get_gather_queue(resource_id=None):
-    if resource_id is None:
-        resource_id = get_session().resource_id
-    return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_gather.fifo")[
-        "QueueUrl"
-    ]
+def gather_queue_url():
+    return get_session().gather_queue_url
 
 
-def get_execution_queue(resource_id=None):
-    if resource_id is None:
-        resource_id = get_session().resource_id
-    return sqs.get_queue_url(QueueName="banyan_" + resource_id + "_execution.fifo")[
-        "QueueUrl"
-    ]
+def execution_queue_url():
+    return get_session().execution_queue_url
 
 
 ###################
@@ -116,12 +105,12 @@ def receive_next_message(
 def receive_from_client(value_id):
     # Send scatter message to client
     send_message(
-        get_gather_queue(),
+        gather_queue_url(),
         json.dumps({"kind": "SCATTER_REQUEST", "value_id": value_id}),
     )
     # Receive response from client
-    m = json.loads(get_next_message(get_scatter_queue()))
-    v = from_py_value_contents(m["contents"])
+    m = json.loads(get_next_message(gather_queue_url()))
+    v = from_py_string(m["contents"])
     return v
 
 
@@ -130,33 +119,82 @@ def receive_from_client(value_id):
 ################
 
 
-def send_message(queue_name, message):
-    # queue_url = sqs.get_queue_url(queue_name)
+def send_message(queue_url, message, group_id="1", deduplication_id=None):
+    if deduplication_id is None:
+        deduplication_id = generate_message_id()
     return sqs.send_message(
-        QueueUrl=queue_name,  # queue_url,
+        QueueUrl=queue_url,
         MessageBody=message,  # TODO: Is that correct?,
-        MessageGroupId="1",
-        MessageDeduplicationId=generate_message_id(),
+        MessageGroupId=group_id,
+        MessageDeduplicationId=deduplication_id,
     )
 
 
 def send_to_client(value_id, value, worker_memory_used=0):
     MAX_MESSAGE_LENGTH = 220000
-    message = to_py_value_contents(value)
-    i = 0
+    message = to_py_string(value)
+    generated_message_id = generate_message_id()
+
+    # Break the message down into chunk ranges
+    nmessages = 0
+    message_length = len(message)
+    message_ranges = []
+    message_i = 0
     while True:
-        is_last_message = len(message) <= MAX_MESSAGE_LENGTH
-        if not is_last_message:
-            msg = message[:MAX_MESSAGE_LENGTH]
-            message = message[MAX_MESSAGE_LENGTH:]
-        msg = {
-            "kind": "GATHER_END" if is_last_message else "GATHER",
-            "value_id": value_id,
-            "contents": message,
-            "worker_memory_used": worker_memory_used,
-            "gather_page_idx": i,
-        }
-        send_message(get_gather_queue(), json.dumps(msg))
-        i += 1
+        is_last_message = message_length <= MAX_MESSAGE_LENGTH
+        starti = message_i
+        if is_last_message:
+            message_i += message_length
+            message_length = 0
+        else:
+            message_i += MAX_MESSAGE_LENGTH
+            message_length -= MAX_MESSAGE_LENGTH
+        message_ranges.append((starti, message_i))
+        nmessages += 1
         if is_last_message:
             break
+
+    # Launch asynchronous threads to send SQS messages
+    gather_q_url = gather_queue_url()
+    num_chunks = len(message_ranges)
+    if num_chunks > 1:
+        with ThreadPoolExecutor() as executor:
+            executor.map(
+                lambda i: send_message(
+                    gather_q_url,
+                    json.dumps(
+                        {
+                            "kind": "GATHER",
+                            "value_id": value_id,
+                            "contents": message[
+                                message_ranges[i][0] : message_ranges[i][1]
+                            ],
+                            "contents_length": message_ranges[i][1]
+                            - message_ranges[i][0],
+                            "worker_memory_used": worker_memory_used,
+                            "chunk_idx": i,
+                            "num_chunks": num_chunks,
+                        }
+                    ),
+                    group_id=str(i),
+                    deduplication_id=generated_message_id + str(i),
+                ),
+                list(range(num_chunks)),
+            )
+    else:
+        i = 0
+        msg = {
+            "kind": "GATHER",
+            "value_id": value_id,
+            "contents": message[message_ranges[i][0] : message_ranges[i][1]],
+            "worker_memory_used": worker_memory_used,
+            "chunk_idx": i,
+            "num_chunks": num_chunks,
+        }
+        msg_json = json.dumps(msg)
+        send_message(
+            gather_q_url,
+            msg_json,
+            group_id=str(i),
+            deduplication_id=generated_message_id + str(i),
+        )

@@ -1,4 +1,4 @@
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import logging
 from math import ceil
@@ -155,7 +155,7 @@ def ReadBlockHelper(format_value):
                     path = getpath(meta_path[file_i])
                     dfs_res[i] = filtering_op(read_file(format_value, path))
 
-                with concurrent.futures.ThreadPoolExecutor() as executor:
+                with ThreadPoolExecutor() as executor:
                     future_to_params = {
                         executor.submit(
                             reader, dfs_res, meta_path, format_value, i, file_i

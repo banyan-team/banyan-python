@@ -4,9 +4,55 @@ from typing import Any, Dict, List, Tuple
 from plum import dispatch
 
 from .future import Future
+from .location import session_sampling_configs
 from .locations import get_location
-from .sample import Sample
+from .sample import Sample, SamplingConfig
 from .utils import total_memory_usage
+
+
+def configure_sampling(
+    path="",
+    nworkers=None,
+    sample_rate=None,
+    always_exact=None,
+    max_num_bytes_exact=None,
+    force_new_sample_rate=None,
+    assume_shuffled=None,
+    for_all_locations=False,
+    default=False,
+    **kwargs,
+):
+    global session_sampling_configs
+
+    if sample_rate is None:
+        sample_rate = (nworkers * 8) if (nworkers is not None) else sc.rate
+    if always_exact is None:
+        always_exact = sc.always_exact
+    if max_num_bytes_exact is None:
+        max_num_bytes_exact = sc.max_num_bytes_exact
+    if force_new_sample_rate is None:
+        force_new_sample_rate = sc.force_new_sample_rate
+    if assume_shuffled is None:
+        assume_shuffled = sc.assume_shuffled
+
+    sc = DEFAULT_SAMPLING_CONFIG if default else get_sampling_config(path, kwargs)
+    nsc = SamplingConfig(
+        sample_rate,
+        always_exact,
+        max_num_bytes_exact,
+        force_new_sample_rate,
+        assume_shuffled,
+    )
+
+    session_id = _get_session_id_no_error()
+    lp = LocationPath(path, kwargs)
+    sampling_configs = session_sampling_configs[session_id]
+    if for_all_locations:
+        sampling_configs = {}
+        sampling_configs[NO_LOCATION_PATH] = nsc
+    else:
+        sampling_configs[lp] = nsc
+
 
 ###############################################################
 # Sample that caches properties returned by an AbstractSample #
@@ -34,7 +80,7 @@ def sample_keys(type_as: Any):
 
 @dispatch
 def ExactSample(value: Any):
-    return Sample(value, total_memory_usage(value), 1)
+    return Sample(value, 1)
 
 
 @dispatch
@@ -227,8 +273,6 @@ def sample_min(A: Any, key: Any):
 def sample_max(A: Any, key: Any):
     return None if len(A) == 0 else _maximum(orderinghashes(A, key))
 
-
-NOTHING_SAMPLE = Sample(None, -1, -1)
 
 # TODO: Not sure what to do with below line
 # Base.isnothing(s::Sample) = s.rate == -1

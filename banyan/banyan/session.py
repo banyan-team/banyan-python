@@ -6,6 +6,8 @@ from .id import ResourceId, SessionId
 
 sessions = {}
 current_session_id = None
+# Tasks for starting sessions
+start_session_tasks = {}
 
 
 class Session:
@@ -17,7 +19,6 @@ class Session:
         session_id: SessionId,
         resource_id: ResourceId,
         nworkers: int,
-        sample_rate: int,
         organization_id: str = "",
         cluster_instance_id: str = "",
         not_using_modules: List[str] = NOT_USING_MODULES,
@@ -26,11 +27,11 @@ class Session:
         scatter_queue_url: str = "",
         gather_queue_url: str = "",
         execution_queue_url: str = "",
+        print_logs: bool = False,
     ):
         self.session_id = session_id
         self.resource_id = resource_id
         self.nworkers = nworkers
-        self.sample_rate = sample_rate
         self.locations = {}
         self.pending_requests = []
         self.futures_on_client = {}
@@ -45,81 +46,31 @@ class Session:
         self.scatter_queue_url = scatter_queue_url
         self.gather_queue_url = gather_queue_url
         self.execution_queue_url = execution_queue_url
+        self.print_logs = print_logs
 
 
-def set_session(session_id: str, session=None, *args, **kwargs):
-    """Sets the session ID.
-
-    Parameters
-    ----------
-    session_id : string
-        Session ID to use
-    session : Session
-        If not None (default), the global sessions table is updated to include
-        this session.
-    """
-
-    global current_session_id
-    current_session_id = session_id
-
-    global sessions
-    if session is not None:
-        sessions[current_session_id] = session
-
-
-def get_session_id(*args, **kwargs):
-    """Returns the value of the global variable set to the current session ID.
-
-    Returns
-    -------
-    string
-        Current session ID
-    """
-
-    global current_session_id
-    if current_session_id is None:
-        raise Exception(
-            "No session started or selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
+def sampling_configs_to_py(sampling_configs: Dict[LocationPath, SamplingConfig]):
+    res = []
+    for (l, s) in sampling_configs:
+        res.append(
+            (
+                (l.original_path, l.format_name, l.format_version),
+                (
+                    s.rate,
+                    s.always_exact,
+                    s.max_num_bytes_exact,
+                    s.force_new_sample_rate,
+                    s.assume_shuffled,
+                ),
+            ),
         )
-    return current_session_id
+    return res
 
 
-def get_session(session_id=None, *args, **kwargs):
-    """Get information about the current session.
-
-    Parameter
-    --------
-    session_id : string
-        Session ID to get information for
-
-    Returns
-    -------
-    Session
-        Information about the given session ID
-
-    Raises
-    ------
-        Exception if the session ID is for a session that wasn't created by this
-        process or has failed
-    """
-
-    if session_id is None:
-        session_id = get_session_id()
-    global sessions  # an empty dictionary that will get filled up with mappings from session_id ->instances of the class Session
-    if session_id not in sessions:
-        raise Exception(
-            f"The selected job with ID {session_id} does not have any information; if it was created by this process, it has either failed or been destroyed."
+def sampling_configs_from_py(sampling_configs):
+    res = {}
+    for (l, s) in sampling_configs:
+        res[LocationPath(l[0], l[1], l[2])] = SamplingConfig(
+            s[0], s[1], s[2], s[3], s[4]
         )
-    return sessions[session_id]
-
-
-def get_cluster_name(*args, **kwargs):
-    """Gets the name of the cluster that the current session is running on.
-
-    Returns
-    -------
-    string
-        Name of the cluster that the current session is running on.
-    """
-
-    return get_session().cluster_name
+    return res

@@ -1,5 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime
+from functools import partial
 import json
 import logging
 import os
@@ -38,9 +40,11 @@ from .partitions import NOTHING_PARTITIONED_USING_FUNC
 from .pfs import forget_parents
 from .pt_lib_constructors import Replicated
 from .queues import (
+    gather_queue_url,
     get_gather_queue,
     get_scatter_queue,
     receive_next_message,
+    scatter_queue_url,
     send_message,
 )
 from .request import DestroyRequest, RecordTaskRequest, Request
@@ -82,13 +86,13 @@ from .utils import (
 
 
 def check_worker_stuck_error(
-    message: Dict[str, Any],
+    value_id: ValueId,
+    contents: str,
     error_for_main_stuck: str,
     error_for_main_stuck_time: datetime.DateTime,
 ) -> Tuple[str, datetime.DateTime]:
-    value_id = message["value_id"]
     if (value_id == "-2") and (error_for_main_stuck_time is None):
-        error_for_main_stuck_msg = from_py_value_contents(message["contents"])
+        error_for_main_stuck_msg = from_py_string(contents)
         if f"session {get_session_id()}" in error_for_main_stuck_msg:
             error_for_main_stuck = error_for_main_stuck_msg
             error_for_main_stuck_time = datetime.now()
@@ -240,7 +244,7 @@ def _partitioned_computation_concrete(
             duplicate_for_batching(pa)
 
         # Destroy all closures so that all references to `Future`s are dropped
-        t.partitioned_using_func = NOTHING_PARTITIONED_USING_FUNC
+        t.partitioned_using_func = deepcopy(NOTHING_PARTITIONED_USING_FUNC)
         t.partitioned_with_func = lambda x: x
         t.futures = []
 
@@ -282,22 +286,24 @@ def _partitioned_computation_concrete(
     # end of preparing tasks
 
     # Send evaluation request
-    is_merged_to_disk: bool = False
+    is_merged_to_disk = False
+    num_merges_to_client = 0
     try:
         response = send_evaluation(fut.value_id, session_id)
         is_merged_to_disk = response["is_merged_to_disk"]
+        num_merges_to_client = response["num_merges_to_client"]
     except:
         end_session(failed=True)
         raise  # TODO: Double check this to rethrow exception
 
     # Get queues for moving data between client and cluster
-    scatter_queue = get_scatter_queue()
-    gather_queue = get_gather_queue()
+    scatter_queue = scatter_queue_url()
+    gather_queue = gather_queue_url()
 
     # There are two cases: either we
     # TODO: Maybe we don't need to wait_For_session
 
-    # There is a problem where we start a session with nowait=true and then it
+    # There is a problem where we start a session with wait_now=False and then it
     # reuses a resource that is in a creating state. Since the session is still
     # creating and we have not yet waited for it to start, if we have
     # `estimate_available_memory=false` then we will end up with job info not
@@ -321,7 +327,6 @@ def _partitioned_computation_concrete(
     # @debug "Waiting on running session $session_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
     error_for_main_stuck = None
     error_for_main_stuck_time = None
-    partial_gathers = {}
     while True:
         # TODO: Use to_jl_value and from_jl_value to support Client
         message, error_for_main_stuck = receive_next_message(
@@ -338,7 +343,7 @@ def _partitioned_computation_concrete(
             send_message(
                 scatter_queue,
                 json.dumps(
-                    {"value_id": value_id, "contents": to_py_value_contents(f.value)},
+                    {"value_id": value_id, "contents": to_py_string(f.value)},
                 ),
             )
             # TODO: Update stale/mutated here to avoid costly
@@ -346,23 +351,44 @@ def _partitioned_computation_concrete(
         elif message_type == "GATHER":
             # Receive gather
             value_id: ValueId = message["value_id"]
-            if value_id not in partial_gathers:
-                partial_gathers[value_id]: str = message["contents"]
-            else:
-                partial_gathers[value_id] *= message["contents"]
+            num_chunks = message["num_chunks"]
+            num_remaining_chunks = num_chunks - 1
+            if num_chunks > 1:
+                partial_messages = [None for _ in range(num_chunks)]
+                partial_messages[message["chunk_idx"]] = message["contents"]
 
-        elif message_type == "GATHER_END":  # NOTE: CONTINUE FROM HERE
-            value_id = message["value_id"]
-            contents = partial_gathers.get(value_id, "") * message["contents"]
-            # @debug "Received gather request for $value_id"
+                def receive_next_chunk(partial_messages):
+                    partial_message, _ = receive_next_message(
+                        gather_queue, None, None, value_id
+                    )
+                    chunk_idx = partial_message["chunk_idx"]
+                    partial_messages[chunk_idx] = partial_message["contents"]
+
+                with ThreadPoolExecutor() as executor:
+                    executor.map(
+                        lambda i: receive_next_chunk(partial_messages),
+                        list(range(num_remaining_chunks)),
+                    )
+                whole_message_contents = "".join(partial_messages)
+            else:
+                whole_message_contents = message["contents"]
+
             if value_id in session.futures_on_client:
-                value = from_py_value_contents(contents)
+                value = from_py_string(whole_message_contents)
                 f = session.futures_on_client[value_id]
                 f.value = value
                 # TODO: Update stale/mutated here to avoid costly
                 # call to `send_evaluation`
+
+                # Stop if we have received all merges
+                num_merges_to_client -= 1
+                if num_merges_to_client <= 0:
+                    break
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(
-                message, error_for_main_stuck, error_for_main_stuck_time
+                value_id,
+                whole_message_contents,
+                error_for_main_stuck,
+                error_for_main_stuck_time,
             )
         elif message_type == "EVALUATION_END":
             if message["end"]:
@@ -416,8 +442,8 @@ def partitioned_computation_concrete(
     # require the last value to be merged simply because it is being evaluated.
 
     sessions = get_sessions_dict()
-    session_id = get_session_id()
     session = get_session()
+    session_id = get_session_id()
     resource_id = session.resource_id
 
     destroyed_value_ids = get_destroyed_value_ids()
@@ -580,7 +606,7 @@ def configure_scheduling(**kwargs):
 def send_evaluation(value_id: ValueId, session_id: SessionId):
     # First we ensure that the session is ready. This way, we can get a good
     # estimate of available worker memory before calling evaluate.
-    wait_for_session(session_id)
+    session = get_session(session_id)
 
     encourage_parallelism = get_encourage_parallelism()
     encourage_parallelism_with_batches = get_encourage_parallelism_with_batches()
@@ -644,6 +670,7 @@ def send_evaluation(value_id: ValueId, session_id: SessionId):
             "organization_id": get_session().organization_id,
             "cluster_instance_id": get_session().cluster_instance_id,
             "cluster_name": get_session().cluster_name,
+            "sampling_configs": sampling_configs_to_py(get_sampling_configs()),
         },
     )
     if response is None:
@@ -710,13 +737,15 @@ def compute_inplace(fut: Future):
 #     when calling evaluate (see send_evaluate) and value_id -1
 # offloaded(some_func; distributed=true)
 # offloaded(some_func, a, b; distributed=true)
-def offloaded(given_function: Callable, *args, distributed: bool = False):
+def offloaded(
+    given_function: Callable, *args, distributed: bool = False, print_logs=None
+):
 
     # NOTE: no need for wait_for_session here because evaluate for offloaded
     # doesn't need information about memory usage from intiial package loading.
 
     # Get serialized function
-    serialized = to_py_value_contents((given_function, args))
+    serialized = to_py_string((given_function, args))
 
     # Submit evaluation request
     session = get_session()
@@ -724,6 +753,8 @@ def offloaded(given_function: Callable, *args, distributed: bool = False):
         raise Exception("Organization ID not stored locally for this session")
     if (session.cluster_instance_id is None) or (session.cluster_instance_id == ""):
         raise Exception("Cluster instance ID not stored locally for this session")
+    if print_logs is None:
+        print_logs = session.print_logs
     not_using_modules = session.not_using_modules
     main_modules = [m for m in get_loaded_packages() if (m not in not_using_modules)]
     session_id = get_session_id()
@@ -740,26 +771,30 @@ def offloaded(given_function: Callable, *args, distributed: bool = False):
             "benchmark": os.getenv("BANYAN_BENCHMARK", default="0") == "1",
             "offloaded_function_code": serialized,
             "distributed": distributed,
-            "worker_memory_used": get_session().worker_memory_used,
-            "resource_id": get_session().resource_id,
-            "organization_id": get_session().organization_id,
-            "cluster_instance_id": get_session().cluster_instance_id,
-            "cluster_name": get_session().cluster_name,
+            "worker_memory_used": session.worker_memory_used,
+            "resource_id": session.resource_id,
+            "organization_id": session.organization_id,
+            "cluster_instance_id": session.cluster_instance_id,
+            "cluster_name": session.cluster_name,
+            "sampling_configs": sampling_configs_to_py(get_sampling_configs()),
+            "print_logs": print_logs,
         },
     )
     if response is None:
-        raise Exception("The evaluation request has failed. Please contact support")
+        raise Exception(
+            "The evaluation request has failed. Please contact us at "
+            "support@banyancomputing.com or use the Banyan Users Slack for assistance."
+        )
 
     # We must wait for session because otherwise we will slurp up the session
     # ready message on the gather queue.
-    wait_for_session(session_id)
+    session = get_session(session_id)
 
     # job_id = Banyan.get_job_id()
     # p = ProgressUnknown("Running offloaded code", spinner=true)
 
-    session = get_session()
-    gather_queue = get_gather_queue()
-    stored_message = None
+    gather_queue = gather_queue_url()
+    stored_res = None
     error_for_main_stuck, error_for_main_stuck_time = None, None
     partial_gathers = {}
     while True:
@@ -770,30 +805,37 @@ def offloaded(given_function: Callable, *args, distributed: bool = False):
         if message_type == "GATHER":
             # Receive gather
             value_id = message["value_id"]
-            contents = message["contents"]
-            if partial_gathers in value_id:
-                partial_gathers[value_id] = contents
+            num_chunks = message["num_chunks"]
+            num_remaining_chunks = num_chunks - 1
+            if num_chunks > 1:
+                partial_messages = ["" for _ in range(num_chunks)]
+                partial_messages[message["chunk_idx"]] = message["contents"]
+
+                def receive_next_chunk(partial_messages):
+                    partial_message = receive_next_message(
+                        gather_queue, None, None, value_id
+                    )[1]
+                    chunk_idx = partial_message["chunk_idx"]
+                    partial_messages[chunk_idx] = partial_message["contents"]
+
+                with ThreadPoolExecutor() as executor:
+                    executor.map(
+                        lambda i: receive_next_chunk(partial_messages),
+                        list(range(num_remaining_chunks)),
+                    )
+                whole_message_contents = "".join(partial_messages)
             else:
-                partial_gathers[value_id] += contents
-        elif message_type == "GATHER_END":
-            value_id = message["value_id"]
-            contents = partial_gathers.get(value_id, "") + message["contents"]
+                whole_message_contents = message["contents"]
             if value_id == "-1":
-                memory_used = message["worker_memory_used"]
-                # Note that while the memory usage from offloaded computation does get
-                # reset with each session even if it reuses the same job, we do
-                # recompute the initial available memory every time we start a session
-                # and this should presumably include the offloaded memory usage.
-                get_session().worker_memory_used = (
-                    get_session().worker_memory_used + memory_used
-                )
-                stored_message = from_py_value_contents(contents)
+                stored_res = from_py_string(whole_message_contents)
+            if not print_logs:
+                return stored_res
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(
                 message, error_for_main_stuck, error_for_main_stuck_time
             )
         elif message_type == "EVALUATION_END":
             if message["end"]:
-                return stored_message
+                return stored_res
 
 
 ###############################################################

@@ -162,16 +162,6 @@ def parse_time(time):
     return local_time
 
 
-# TO DO - to test this function
-def get_loaded_packages():
-    """Returns all the packages/libraries that are currently imported by the user"""
-    return [
-        p[0]
-        for p in locals().items()
-        if inspect.ismodule(p[1]) and not p[0].startswith("__")
-    ]
-
-
 def get_hash(s):
     """Gets a unique represetation of a string
 

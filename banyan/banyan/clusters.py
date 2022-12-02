@@ -1,3 +1,4 @@
+from asyncio import wait_for
 import logging
 from math import ceil
 import os
@@ -22,7 +23,7 @@ clusters = dict()
 
 
 def create_cluster(
-    name: str = None,
+    cluster_name: str = None,
     instance_type: str = "m4.4xlarge",
     max_num_workers: str = 2048,
     initial_num_workers: int = 16,
@@ -35,7 +36,10 @@ def create_cluster(
     region: str = None,
     vpc_id: str = None,
     subnet_id: str = None,
-    nowait: bool = False,
+    wait_now: bool = True,
+    force_create: bool = False,
+    destroy_cluster_after=-1,
+    show_progress=True,
     ec2_key_pair: str = None,
     **kwargs,
 ):
@@ -49,27 +53,39 @@ def create_cluster(
     # Configure using parameters
     c = configure(**kwargs)
 
-    clusters_local = get_clusters(**kwargs)
-    if name is None:
-        name = "Cluster " + str(len(clusters_local) + 1)
+    clusters_local = get_clusters(cluster_name, kwargs)
+
+    if cluster_name is None:
+        cluster_name = "cluster-" + str(len(clusters_local) + 1)
     if region is None:
         region = get_aws_config_region()
 
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
-    if name in clusters_local:
-        if clusters_local[name].status == "terminated":
-            logging.info(f"Started re-creating cluster named {name}")
+    if cluster_name in clusters_local:
+        if force_create or (clusters_local[cluster_name].status == "terminated"):
+            if show_progress:
+                logging.info(f"Started re-creating cluster named {cluster_name}")
             send_request_get_response(
-                "create-cluster", {"cluster_name": name, "recreate": True}
+                "create-cluster",
+                {
+                    "cluster_name": cluster_name,
+                    "recreate": True,
+                    "force_create": True,
+                    "destroy_cluster_after": destroy_cluster_after,
+                },
             )
-            if not nowait:
-                wait_for_cluster(name)
+            if wait_now:
+                wait_for_cluster(cluster_name, kwargs)
             # Cache info
-            return get_cluster(name)
+            return get_cluster(cluster_name, kwargs)
+        elif clusters_local[cluster_name].status == "creating":
+            if wait_now:
+                wait_for_cluster(cluster_name, kwargs)
+            return get_cluster(cluster_name, kwargs)
         else:
             raise Exception(
-                f"Cluster with name {name} already exists and its current status is {str(clusters_local[name].status)}"
+                f"Cluster with name {cluster_name} already exists and its current status is {str(clusters_local[cluster_name].status)}"
             )
 
     # Construct arguments
@@ -87,7 +103,7 @@ def create_cluster(
 
     # Construct cluster creation
     cluster_config = {
-        "cluster_name": name,
+        "cluster_name": cluster_name,
         "instance_type": instance_type,
         "max_num_workers": max_num_workers,
         "initial_num_workers": initial_num_workers,
@@ -103,6 +119,7 @@ def create_cluster(
         "disk_capacity": -1
         if (disk_capacity == "auto")
         else ceil(parse_bytes(disk_capacity) / 1.073741824e7),
+        "destroy_cluster_after": destroy_cluster_after,
     }
 
     if "ec2_key_pair_name" in c["aws"]:
@@ -116,17 +133,18 @@ def create_cluster(
     if not ec2_key_pair == None:
         cluster_config["ec2_key_pair"] = ec2_key_pair
 
-    logging.info(f"Started creating cluster named {name}")
+    if show_progress:
+        logging.info(f"Started creating cluster named {cluster_name}")
     # Send request to create cluster
     send_request_get_response("create-cluster", cluster_config)
 
-    if not nowait:
-        wait_for_cluster(name)
+    if wait_now:
+        wait_for_cluster(cluster_name)
 
     # Cache info
-    get_cluster(name)
+    get_cluster(cluster_name, kwargs)
 
-    return clusters[name]
+    return clusters[cluster_name]
 
 
 def destroy_cluster(name: str, **kwargs):

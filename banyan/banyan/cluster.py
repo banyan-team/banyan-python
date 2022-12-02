@@ -1,7 +1,7 @@
 class Cluster:
     def __init__(
         self,
-        name: str,
+        cluster_name: str,
         status: str,
         status_explanation: str,
         s3_bucket_arn: str,
@@ -10,7 +10,7 @@ class Cluster:
         num_sessions_running: int,
         num_workers_running: int,
     ):
-        self.name = name
+        self.cluster_name = cluster_name
         self.status = status
         self.status_explanation = status_explanation
         self.s3_bucket_arn = s3_bucket_arn

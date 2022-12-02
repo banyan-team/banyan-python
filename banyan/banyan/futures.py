@@ -11,7 +11,7 @@ from copy import deepcopy
 from typing import Any
 
 from .annotation import mutated
-from .future import Future, NOTHING_FUTURE
+from .future import Future, NothingFuture
 from .id import generate_value_id, ValueId
 from .location import Location
 from .locations import (
@@ -24,7 +24,7 @@ from .locations import (
     Value,
 )
 from .session import get_session
-from .utils import total_memory_usage
+from .utils import sample_memory_usage
 
 
 def create_future(
@@ -85,11 +85,11 @@ def create_new_future(source: Location, mutate_from: Future, datatype: str):
 def create_future_from_sample(value: Any, datatype: str) -> Future:
     # TODO: Store values in S3 instead so that we can read from there
     location: Location = (
-        Value(value) if total_memory_usage(value) <= (4 * 1024) else Client(value)
+        Value(value) if sample_memory_usage(value) <= (4 * 1024) else Client(value)
     )
 
     # Create future, store value, and return
-    return create_new_future(location, NOTHING_FUTURE, datatype)
+    return create_new_future(location, NothingFuture(), datatype)
 
 
 # Constructs a future from a future that was already created.
@@ -123,7 +123,7 @@ def create_future_from_existing(fut: Future, mutation: Any) -> Future:
 
         new_future
     else:
-        create_new_future(Nothing(), NOTHING_FUTURE, fut.datatype)
+        create_new_future(Nothing(), NothingFuture(), fut.datatype)
 
 
 class NothingValue:
@@ -146,7 +146,7 @@ def Future(
         return create_future_from_existing(from_future, mutation)
     elif isinstance(value, NothingValue):
         return create_new_future(
-            source, NOTHING_FUTURE if (mutate_from is None) else mutate_from, datatype
+            source, NothingFuture() if (mutate_from is None) else mutate_from, datatype
         )
     else:
         return create_future_from_sample(value, datatype)

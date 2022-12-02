@@ -1,4 +1,5 @@
 import boto3
+import inspect
 import logging
 import os
 from pygit2 import Repository
@@ -6,6 +7,7 @@ import time
 from tqdm import tqdm
 from typing import List
 
+import progressbar
 
 from .constants import BANYAN_PYTHON_BRANCH_NAME, BANYAN_PYTHON_PACKAGES
 from .clusters import (
@@ -22,6 +24,7 @@ from .session import (
     current_session_id,
     get_session,
     Session,
+    start_session_tasks,
 )
 from .utils import (
     get_hash,
@@ -32,6 +35,380 @@ from .utils import (
     send_request_get_response,
     upload_file_to_s3,
 )
+
+
+# Process-local dictionary mapping from session IDs to instances of `Session`
+sessions = {}
+current_session_id = ""
+# Tasks for starting sessions
+start_session_tasks = {}
+
+
+def set_session(session_id: SessionId):
+    """Sets the session ID.
+
+    Parameters
+    ----------
+    session_id : string
+        Session ID to use
+    """
+    global current_session_id
+    current_session_id = session_id
+
+
+def _get_session_id_no_error() -> SessionId:
+    global current_session_id
+    global sessions
+    if current_session_id not in sessions:
+        return ""
+    return current_session_id
+
+
+def has_session_id():
+    return _get_session_id_no_error() != ""
+
+
+def get_session_id(session_id="") -> SessionId:
+    global current_session_id
+    global sessions
+    global start_session_tasks
+    global session_sampling_configs
+
+    if session_id == "":
+        session_id = current_session_id
+
+    if session_id in sessions:
+        return session_id
+    elif session_id in start_session_tasks:
+        start_session_task = start_session_tasks[session_id]
+        if istaskdone(start_session_task) and (len(start_session_task.result) == 2):
+            e, bt = start_session_task.result
+            showerror(stderr, e, bt)
+            raise Exception(f"Failed to start session with ID {session_id}")
+        elif istaskdone(start_session_task) and (len(start_session_task.result) == 3):
+            new_session_id, session, sampling_configs = start_session_task.result
+            sessions[new_session_id] = session
+            session_sampling_configs[new_session_id] = sampling_configs
+            if session_id == current_session_id:
+                current_session_id = new_session_id
+            return new_session_id
+        else:
+            # Otherwise, the task is still running or hasn't yet been started
+            # in which case we will just return the ID of the start_session task
+            return session_id
+    elif session_id == "" or session_id is None:
+        return start_session()
+    elif session_id.startswith("start-session-"):
+        raise Exception(
+            f"The session with ID {session_id} was not created in this Julia session"
+        )
+    else:
+        return session_id
+
+
+def get_sessions_dict() -> Dict[SessionId, Session]:
+    global sessions
+    return sessions
+
+
+def get_session(session_id=get_session_id(), show_progress=True) -> Session:
+    global start_session_tasks
+    sessions_dict = get_sessions_dict()
+    if session_id in sessions_dict:
+        return sessions_dict[session_id]
+    elif session_id in start_session_tasks:
+        # Schedule the task if not yet scheduled
+        start_session_task = start_session_tasks[session_id]
+        if not istaskstarted(start_session_task):
+            yield start_session_task
+
+        # Keep looping till the task is created
+
+        p = progressbar.ProgressBar(
+            [f"Preparing session with ID {session_id}", progressbar.Bar()]
+        ).start()
+        p_i = 0
+        try:
+            while get_session_id(session_id) not in get_sessions_dict():
+                p.update(p_i + 1)
+        except Exception as e:
+            p.finish()
+            raise
+        p.finish()
+        return get_sessions_dict()[get_session_id(session_id)]
+    else:
+        raise Exception(
+            f"The session ID {session_id} is not stored as a session starting task in progress or a running session"
+        )
+
+
+def get_cluster_name() -> str:
+    """Gets the name of the cluster that the current session is running on.
+
+    Returns
+    -------
+    string
+        Name of the cluster that the current session is running on.
+    """
+
+    return get_session().cluster_name
+
+
+# TO DO - to test this function
+def get_loaded_packages():
+    """Returns all the packages/libraries that are currently imported by the user"""
+    current_session_id = _get_session_id_no_error()
+    if current_session_id != "":
+        loaded_packages = get_sessions_dict()[current_session_id].loaded_packages
+    else:
+        loaded_packages = set()
+    res = list(loaded_packages)
+    res.extend(
+        [
+            p[0]
+            for p in locals().items()
+            if inspect.ismodule(p[1]) and not p[0].startswith("__")
+        ]
+    )
+    return res
+
+
+NOTHING_STRING = "NOTHING_STRING"
+
+StartSessionResult = Tuple[SessionId, Session, Dict[LocationPath, SamplingConfig]]
+
+
+def _start_session(
+    cluster_name: str,
+    c: Cluster,
+    nworkers: int,
+    release_resources_after: int,
+    print_logs: bool,
+    store_logs_in_s3: bool,
+    store_logs_on_cluster: bool,
+    log_initialization: bool,
+    session_name: str,
+    files: List[str],
+    code_files: List[str],
+    force_update_files: bool,
+    pf_dispatch_table: List[str],
+    no_pf_dispatch_table: bool,
+    using_modules: List[str],
+    # We currently can't use modules that require GUI
+    not_using_modules: List[str],
+    url: str,
+    branch: str,
+    directory: str,
+    dev_paths: List[str],
+    force_sync: bool,
+    force_pull: bool,
+    force_install: bool,
+    force_new_pf_dispatch_table: bool,
+    estimate_available_memory: bool,
+    email_when_ready: bool,
+    no_email: bool,
+    for_running: bool,
+    sessions: Dict[str,Session],
+    sampling_configs: Dict[LocationPath,SamplingConfig],
+) -> StartSessionResult:
+    global session_sampling_configs
+
+    version = get_python_version()
+
+    not_in_modules = lambda m: m not in not_using_modules)
+    main_modules = filter(not_in_modules, get_loaded_packages())
+    using_modules = filter(not_in_modules, using_modules)
+    session_configuration = {
+        "cluster_name": cluster_name,
+        "num_workers": nworkers,
+        "release_resources_after": None if (release_resources_after == -1) else release_resources_after,
+        "return_logs": print_logs,
+        "store_logs_in_s3": store_logs_in_s3,
+        "store_logs_on_cluster": store_logs_on_cluster,
+        "log_initialization": log_initialization,
+        "version": version,
+        "benchmark": os.getenv("BANYAN_BENCHMARK", "0") == "1",
+        "main_modules": main_modules,
+        "using_modules": using_modules,
+        "reuse_resources": not force_update_files,
+        "estimate_available_memory": estimate_available_memory,
+        "language": "jl",
+        "sampling_configs": sampling_configs_to_py(sampling_configs),
+        "assume_cluster_is_running": True,
+        "force_new_pf_dispatch_table": force_new_pf_dispatch_table,
+    }
+    if session_name != NOTHING_STRING:
+        session_configuration["session_name"] = session_name
+    if no no_email:
+        session_configuration["email_when_ready"] = email_when_ready
+    
+    s3_bucket_name = s3_bucket_arn_to_name(c.s3_bucket_arn)
+    organization_id = c.organization_id
+    curr_cluster_instance_id = c.curr_cluster_instance_id
+    
+    session_configuration["organization_id"] = organization_id
+    session_configuration["curr_cluster_instance_id"] = curr_cluster_instance_id
+
+    environment_info = {}
+    # If a url is not provided, then use the local environment
+    if url == NOTHING_STRING:
+
+        # TODO: Optimize to not have to send tomls on every call
+        local_environment_dir = get_julia_environment_dir()
+        project_toml = load_file(f"file://{local_environment_dir}Project.toml")
+        if not os.path.isfile(f"{local_environment_dir}Manifest.toml")
+            manifest_toml = ""
+            logging.warning("Creating a session with a Julia environment that does not have a Manifest.toml")
+        else:
+            manifest_toml = load_file(f"file://{local_environment_dir}Manifest.toml")
+        environment_hash = get_hash(project_toml + manifest_toml + version)
+        environment_info["environment_hash"] = environment_hash
+        environment_info["project_toml"] = "$(environment_hash)/Project.toml"
+        file_already_in_s3 = os.path.isfile(S3Path(f"s3://{s3_bucket_name}/{environment_hash}/Project.toml"))
+        if not file_already_in_s3
+            s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+        if manifest_toml != "":
+            environment_info["manifest_toml"] = f"{environment_hash}/Manifest.toml"
+            file_already_in_s3 = isfile(S3Path(f"s3://{s3_bucket_name}/{environment_hash}/Manifest.toml", config=global_aws_config()))
+            if not file_already_in_s3
+                s3_put(global_aws_config(), s3_bucket_name, f"{environment_hash}/Manifest.toml", manifest_toml)
+    else:
+        # Otherwise, use url and optionally a particular branch
+        environment_info["url"] = url
+        if directory == NOTHING_STRING:
+            raise Exception(f"Directory must be provided for given URL {url}")
+        environment_info["directory"] = directory
+        if branch != NOTHING_STRING:
+            environment_info["branch"] = branch
+        environment_info["dev_paths"] = dev_paths
+        environment_info["force_pull"] = force_pull
+        environment_info["force_install"] = force_install
+        environment_info["environment_hash"] = get_hash(
+            url + ("" if branch == NOTHING_STRING  else branch end) + "".join(dev_paths)
+        )
+    environment_info["force_sync"] = force_sync
+    session_configuration["environment_info"] = environment_info
+
+    # Upload files to S3
+    for f in [*files, *code_files]:
+        s3_path = S3Path(f"s3://{s3_bucket_name}/{os.path.basename(f)}", config=global_aws_config())
+        if not os.path.isfile(s3_path) or force_update_files
+            s3_put(global_aws_config(), s3_bucket_name, basename(f), load_file(f))
+        end
+    end
+    # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
+    session_configuration["files"] = list(map(os.path.basename, files))
+    session_configuration["code_files"] = list(map(os.path.basename, code_files))
+
+    if no_pf_dispatch_table:
+        branch_to_use = get_branch_name() if os.getenv("BANYAN_TESTING", "0") == "1" BANYAN_JULIA_BRANCH_NAME
+        pf_dispatch_table = []
+        for dir in BANYAN_JULIA_PACKAGES:
+            pf_dispatch_table.append(f"https://raw.githubusercontent.com/banyan-team/banyan-julia/{branch_to_use}/{dir}/res/pf_dispatch_table.toml")
+        end
+    end
+    session_configuration["pf_dispatch_tables"] = pf_dispatch_table
+
+    # Start the session
+    logging.debug("Sending request for start_session")
+    response = send_request_get_response("start_session", session_configuration)
+    session_id = response["session_id"]
+    resource_id = response["resource_id"]
+    organization_id = response["organization_id"]
+    cluster_instance_id = response["cluster_instance_id"]
+    cluster_name = response["cluster_name"]
+    reusing_resources = response["reusing_resources"]
+    cluster_potentially_not_ready = response["stale_cluster_status"] != "running"
+    scatter_queue_url = response["scatter_queue_url"]
+    gather_queue_url = response["gather_queue_url"]
+    execution_queue_url = response["execution_queue_url"]
+    num_sessions = response["num_sessions"]
+    num_workers_in_use = response["num_workers_in_use"]
+    if for_running:
+        msg = "Running session with ID $session_id and $code_files"
+    else:
+        msg = "Starting session with ID $session_id on cluster named \"$cluster_name\""
+    if num_sessions == 0:
+        msg += " with no sessions running yet"
+    elif num_sessions == 1:
+        msg += " with 1 session already running"
+    else:
+        msg += " with $num_sessions sessions already running"
+    if num_workers_in_use > 0:
+        if num_sessions == 0:
+            msg += " but $num_workers_in_use workers running"
+        else:
+            msg += " on $num_workers_in_use workers"
+    # Store in global state
+    new_session = Session(
+        cluster_name,
+        session_id,
+        resource_id,
+        nworkers,
+        organization_id,
+        cluster_instance_id,
+        not_using_modules,
+        not cluster_potentially_not_ready,
+        False,
+        scatter_queue_url=scatter_queue_url,
+        gather_queue_url=gather_queue_url,
+        execution_queue_url=execution_queue_url,
+        print_logs=print_logs
+    )
+
+    # if !nowait
+    wait_for_session(session_id, False)
+    # elseif !reusing_resources
+    #     @warn "Starting this session requires creating new cloud computing resources which will take 10-30 minutes for the first computation."
+    # end
+
+    logging.debug(f"Finished call to start_session with ID {session_id}")
+    return session_id, new_session, sampling_configs
+
+def get_session_id(*args, **kwargs):
+    """Returns the value of the global variable set to the current session ID.
+
+    Returns
+    -------
+    string
+        Current session ID
+    """
+
+    global current_session_id
+    if current_session_id is None:
+        raise Exception(
+            "No session started or selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
+        )
+    return current_session_id
+
+
+def get_session(session_id=None, *args, **kwargs):
+    """Get information about the current session.
+
+    Parameter
+    --------
+    session_id : string
+        Session ID to get information for
+
+    Returns
+    -------
+    Session
+        Information about the given session ID
+
+    Raises
+    ------
+        Exception if the session ID is for a session that wasn't created by this
+        process or has failed
+    """
+
+    if session_id is None:
+        session_id = get_session_id()
+    global sessions  # an empty dictionary that will get filled up with mappings from session_id ->instances of the class Session
+    if session_id not in sessions:
+        raise Exception(
+            f"The selected job with ID {session_id} does not have any information; if it was created by this process, it has either failed or been destroyed."
+        )
+    return sessions[session_id]
 
 
 def start_session(

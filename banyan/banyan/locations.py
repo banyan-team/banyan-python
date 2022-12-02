@@ -13,7 +13,7 @@ from .clusters import get_cluster_s3_bucket_name
 from .future import Future
 from .futures import get_location
 from .id import ValueId
-from .location import LocationParameters, Location
+from .location import LocationParameters, Location, LocationPath, get_sampling_config
 from .request import RecordLocationRequest
 from .requests import offloaded, record_request
 from .sample import Sample
@@ -27,56 +27,6 @@ from .utils import (
     total_memory_usage,
 )
 from .utils_pfs import to_py_value
-
-#################
-# Location type #
-#################
-
-NOTHING_LOCATION = Location(
-    "None",
-    "None",
-    LocationParameters(),
-    LocationParameters(),
-    int(-1),
-    NOTHING_SAMPLE,
-    False,
-    False,
-)
-
-INVALID_LOCATION = Location(
-    "None",
-    "None",
-    LocationParameters(),
-    LocationParameters(),
-    int(-1),
-    NOTHING_SAMPLE,
-    True,
-    True,
-)
-
-
-def LocationSource(
-    name: str,
-    parameters: LocationParameters,
-    total_memory_usage: int = -1,
-    sample: Sample = Sample(),
-):
-    return Location(
-        name,
-        "None",
-        parameters,
-        LocationParameters(),
-        total_memory_usage,
-        sample,
-        False,
-        False,
-    )
-
-
-def LocationDestination(name: str, parameters: LocationParameters):
-    return Location(
-        "None", name, LocationParameters(), parameters, -1, Sample(), False, False
-    )
 
 
 ################################
@@ -96,9 +46,9 @@ def sourced(fut: Future, loc: Location):
                 "None",
                 loc.src_parameters,
                 {},
-                loc.total_memory_usage,
+                loc.sample_memory_usage,
                 loc.sample if loc.sample.value is None else Sample(),
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid,
             ),
         )
@@ -111,9 +61,9 @@ def sourced(fut: Future, loc: Location):
                 fut_location.dest_name,
                 loc.src_parameters,
                 fut_location.dst_parameters,
-                loc.total_memory_usage,
+                loc.sample_memory_usage,
                 loc.sample if loc.sample.value is None else fut_location.sample,
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid,
             ),
         )
@@ -132,9 +82,9 @@ def destined(fut: Future, loc: Location):
                 loc.dst_name,
                 {},
                 loc.dst_parameters,
-                fut_location.total_memory_usage,
+                fut_location.sample_memory_usage,
                 Sample(),
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid,
             ),
         )
@@ -146,9 +96,9 @@ def destined(fut: Future, loc: Location):
                 loc.dst_name,
                 fut_location.src_parameters,
                 loc.dst_parameters,
-                fut_location.total_memory_usage,
+                fut_location.sample_memory_usage,
                 fut_location.sample,
-                fut_location.parameters_invalid,
+                fut_location.metadata_invalid,
                 fut_location.sample_invalid,
             ),
         )
@@ -239,20 +189,20 @@ def get_dst_parameters(fut) -> LocationParameters:
 
 def Value(val) -> Location:
     val_dict: Dict[str, Any] = {"value": to_py_value(val)}
-    return LocationSource("Value", val_dict, total_memory_usage(val), ExactSample(val))
+    return LocationSource("Value", val_dict, sample_memory_usage(val), ExactSample(val))
 
 
 # TODO: Implement Size
 def Size(val) -> Location:
     val_dict: Dict[str, Any] = {"value": to_py_value(val)}
     return LocationSource(
-        "Value", val_dict, 0, Sample(indexapply(getsamplenrows, val, 1))
+        "Value", val_dict, 0, Sample(indexapply(getsamplenrows, val, 1), 1)
     )
 
 
 def Client(val: Any) -> Location:
     val_dict: Dict[str, Any] = {}
-    return LocationSource("Client", val_dict, total_memory_usage(val), ExactSample(val))
+    return LocationSource("Client", val_dict, sample_memory_usage(val), ExactSample(val))
 
 
 CLIENT = Location(
@@ -343,26 +293,9 @@ def Disk() -> Location:
 # - You might have lots of huge images
 # - You might have lots of workers so your sample rate is really large
 
-MAX_EXACT_SAMPLE_LENGTH = int(os.getenv("BANYAN_MAX_EXACT_SAMPLE_LENGTH", "1024"))
-
-
-def get_max_exact_sample_length() -> int:
-    return MAX_EXACT_SAMPLE_LENGTH
-
-
-def set_max_exact_sample_length(val):
-    global MAX_EXACT_SAMPLE_LENGTH
-    MAX_EXACT_SAMPLE_LENGTH = val
-
-
 def getsamplenrows(totalnrows: int) -> int:
-    if totalnrows <= get_max_exact_sample_length():
-        # NOTE: This includes the case where the dataset is empty
-        # (totalnrows == 0)
-        return totalnrows
-    else:
-        # Must have at least 1 row
-        return math.ceil(totalnrows, get_session().sample_rate)
+    sc = get_sampling_config()
+    return math.ceil(totalnrows, 1 if sc.always_exact else sc.rate)
 
 
 # We maintain a cache of locations and a cache of samples. Locations contain
@@ -374,185 +307,129 @@ def getsamplenrows(totalnrows: int) -> int:
 # eventually stored and updated in S3 on each write.
 
 
-def _invalidate_all_locations():
-    for dir_name in ["banyan_locations", "banyan_meta"]:
-        shutil.rmtree(
-            "s3/$(get_cluster_s3_bucket_name())/$dir_name/", ignore_errors=True
-        )  # TODO: OK?
-        # rm("s3/$(get_cluster_s3_bucket_name())/$dir_name/", force=true, recursive=true)
+def invalidate_metadata(p, **kwargs):
+    lp = LocationPath(p, kwargs)
 
-
-def _invalidate_metadata(remotepath):
-    p = get_location_path(remotepath)
+    # Delete locally
+    p = os.path.join(os.path.expanduser("~"), ".banyan", "metadata", get_metadata_path(lp))
     if os.path.isfile(p):
-        loc = deserialize_retry(p)
-        loc.parameters_invalid = True
-        serialize(p, loc)
+        os.remove(p)
+
+    # Delete from S3
+    s3p = S3Path(f"s3://{banyan_metadata_bucket_name()}/{get_metadata_path(lp)}")
+    if os.path.isfile(s3p):
+        os.remove(s3p)
+
+def invalidate_samples(p, **kwargs):
+    lp = LocationPath(p, kwargs)
+
+    # Delete locally
+    sample_path_prefix = get_sample_path_prefix(lp)
+    samples_local_dir = os.path.join(os.path.expanduser("~"), ".banyan", "samples", sample_path_prefix)
+    if os.path.isdir(samples_local_dir)
+        os.remove(samples_local_dir, recursive=true, force=true)
+    # Delete from S3
+    s3p = S3Path("s3://$(banyan_samples_bucket_name())/$sample_path_prefix")
+    if !isempty(readdir_no_error(s3p))
+        rm(path_as_dir(s3p), recursive=true)
+
+function invalidate_location(p; kwargs...)
+    invalidate_metadata(p; kwargs...)
+    invalidate_samples(p; kwargs...)
+end
+
+function partition(series, partition_size)
+    (series[i:min(i+(partition_size-1),end)] for i in 1:partition_size:length(series))
+end
+function invalidate_all_locations()
+    for local_dir in [get_samples_local_path(), get_metadata_local_path()]
+        rm(local_dir; force=true, recursive=true)
+    end
+    # Delete from S3
+    for bucket_name in [banyan_samples_bucket_name(), banyan_metadata_bucket_name()]
+        s3p = S3Path("s3://$bucket_name")
+        if isdir_no_error(s3p)
+            for p in readdir(s3p, join=true)
+                rm(p, force=true, recursive=true)
+            end
+        end
+    end 
+end
+
+function invalidate(p; after=false, kwargs...)
+    if get(kwargs, after ? :invalidate_all_locations : :all_locations_invalid, false)
+        invalidate_all_location()
+    elseif get(kwargs, after ? :invalidate_location : :location_invalid, false)
+        invalidate_location(p; kwargs...)
+    else
+        if get(kwargs, after ? :invalidate_metadata : :metadata_invalid, false)
+            invalidate_metadata(p; kwargs...)
+        end
+        if get(kwargs, after ? :invalidate_samples : :samples_invalid, false)
+            invalidate_samples(p; kwargs...)
+        end
+    end
 
 
-def _invalidate_sample(remotepath):
-    p = get_location_path(remotepath)
-    if os.path.isfile(p):
-        loc = deserialize_retry(p)
-        loc.sample_invalid = True
-        serialize(p, loc)
-
-
-def invalidate_all_location():
-    return offloaded(_invalidate_all_locations)
-
-
-def invalidate_metadata(p):
-    return offloaded(_invalidate_metadata, p)
-
-
-def invalidate_sample(p):
-    return offloaded(_invalidate_sample, p)
-
-
-# @specialize TODO: Not sure what to do with this
-
-# Helper functions for location constructors; these should only be called from the main worker
-
-# TODO: Hash in a more general way so equivalent paths hash to same value
-# This hashes such that an extra slash at the end won't make a difference``
-def get_remotepath_id(remotepath: str):
-    return (get_python_version(), (hash(os.path.join(Path(remotepath).parts))))
-
-
-def get_location_path(remotepath, remotepath_id):
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
-    if not os.path.isdir(f"s3/{session_s3_bucket_name}/banyan_locations/"):
-        os.path.mkdir(f"s3/{session_s3_bucket_name}/banyan_locations/")
-
-    return f"s3/$session_s3_bucket_name/banyan_locations/$(remotepath_id)"
-
-
-def get_meta_path(remotepath, remotepath_id):
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
-    if not os.path.isdir(f"s3/{session_s3_bucket_name}/banyan_meta/"):
-        os.path.mkdir(f"s3/{session_s3_bucket_name}/banyan_meta/")
-
-    return f"s3/{session_s3_bucket_name}/banyan_meta/{remotepath_id}"
-
-
-def get_location_path(remotepath):
-    return get_location_path(remotepath, get_remotepath_id(remotepath))
-
-
-def get_meta_path(remotepath):
-    return get_meta_path(remotepath, get_remotepath_id(remotepath))
-
-
-def get_cached_location(remotepath, remotepath_id, metadata_invalid, sample_invalid):
-    random.seed(hash((get_session_id(), remotepath_id)))
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
-    location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
-
-    try:
-        curr_location: Location = deserialize_retry(location_path)
-    except:
-        curr_location: Location = INVALID_LOCATION
-
-    curr_location.sample_invalid = curr_location.sample_invalid or sample_invalid
-    curr_location.parameters_invalid = (
-        curr_location.parameters_invalid or metadata_invalid
-    )
-    curr_sample_invalid = curr_location.sample_invalid
-    curr_parameters_invalid = curr_location.parameters_invalid
-    curr_location, curr_sample_invalid, curr_parameters_invalid
-
-
-def get_cached_location(remotepath, metadata_invalid, sample_invalid):
-    return get_cached_location(
-        remotepath, get_remotepath_id(remotepath), metadata_invalid, sample_invalid
-    )
-
-
-def cache_location(
-    remotepath,
-    remotepath_id,
-    location_res: Location,
-    invalidate_sample,
-    invalidate_metadata,
-):
-    location_path = get_location_path(remotepath, remotepath_id)
-    location_to_write = deepcopy(location_res)
-    location_to_write.sample_invalid = (
-        location_to_write.sample_invalid or invalidate_sample
-    )
-    location_to_write.parameters_invalid = (
-        location_to_write.parameters_invalid or invalidate_metadata
-    )
-    serialize(location_path, location_to_write)
-
-
-def cache_location(
-    remotepath, location_res: Location, invalidate_sample, invalidate_metadata
-):
-    return cache_location(
-        remotepath,
-        get_remotepath_id(remotepath),
-        location_res,
-        invalidate_sample,
-        invalidate_metadata,
-    )
-
-
-# Functions to be extended for different data formats
-
-
-def sample_from_range(r, sample_rate):
-    # TODO: Maybe return whole range if sample rate is 1
-    length = len(r)
-    sample_len = int(math.ceil(len / sample_rate))
-    mask = np.random.binomial(1, 1 / sample_rate, length)
-    rand_indices = np.arange(length)[mask.astype("bool")].tolist()
-    if len(rand_indices) > sample_len:
-        rand_indices = rand_indices[:sample_len]
-    else:
-        while len(rand_indices) < sample_len:
-            new_index = random.randrange(0, sample_len)
-            if new_index not in rand_indices:
-                rand_indices.append(new_index)
-
-    return rand_indices
 
 
 class JL:
     pass
 
 
-def has_separate_metadata(t: JL):
-    return False
-
-
-def get_metadata(t: JL, p):
-    return size(deserialize_retry(p), 1)
-
-
-def get_sample_from_data(data, sample_rate, len: int):
-    return get_sample_from_data(
-        data, sample_rate, sample_from_range(range(len), sample_rate)
-    )
-
-
-def get_sample_from_data(data, sample_rate, rand_indices: List[int]):
-    if sample_rate == 1.0:
-        return data
-
-    data_ndims = ndims(data)  # TODO???
-    # TODO: next line?
-    data_selector = Base.fill(Colon(), data_ndims)
-    data_selector[0] = rand_indices
-    return data[data_selector:]
-
-
-def get_sample(t: JL, p, sample_rate, len):
-    data = deserialize_retry(p)
-    return get_sample_from_data(data, sample_rate, len)
-
 
 def get_sample_and_metadata(t: JL, p, sample_rate):
     data = deserialize_retry(p)
     return get_sample_from_data(data, sample_rate, size(data, 1)), size(data, 1)
+
+
+function RemoteSource(
+    lp::LocationPath,
+    _remote_source::Function,
+    load_sample::Function,
+    load_sample_after_offloaded::Function,
+    write_sample::Function,
+    args...
+)::Location
+    # _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int64)::Location
+    # load_sample accepts a file path
+    # load_sample_after_offloaded accepts the sampled value returned by the offloaded function
+    # (for BDF.jl, this is an Arrow blob of bytes that needs to be converted into an actual
+    # dataframe once sent to the client side)
+
+    # Look at local and S3 caches of metadata and samples to attempt to
+    # construct a Location.
+    loc, local_metadata_path, local_sample_path = get_location_source(lp)
+
+    res = if !loc.metadata_invalid && !loc.sample_invalid
+        # Case where both sample and parameters are valid
+        loc.sample.value = load_sample(local_sample_path)
+        loc.sample.rate = parse_sample_rate(local_sample_path)
+        loc
+    elseif loc.metadata_invalid && !loc.sample_invalid
+        # Case where parameters are invalid
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true, print_logs=false)
+        Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        new_loc.sample.value = load_sample(local_sample_path)
+        new_loc
+    else
+        # Case where sample is invalid
+
+        # Get the Location with up-to-date metadata (source parameters) and sample
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true, print_logs=false)
+        # @show new_loc
+
+        if !loc.metadata_invalid
+            # Store the metadata locally. The local copy just has the source
+            # parameters but PFs can still access the S3 copy which will have the
+            # table of file names and #s of rows.
+            Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        end
+
+        # Store the Arrow sample locally and update the returned Sample
+        write_sample(local_sample_path, new_loc.sample.value)
+        new_loc.sample.value = load_sample_after_offloaded(new_loc.sample.value)
+
+        new_loc
+    end
+    res

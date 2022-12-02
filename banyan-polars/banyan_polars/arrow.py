@@ -21,9 +21,10 @@ class Arrow:
     pass
 
 
-def PyArrowTable(p):
+def PyArrowTable(p) -> pa.Table:
     with pa.memory_map(p, "rb") as source:
-        return pa.ipc.open_file(source).read_all()
+        array = pa.ipc.open_file(source).read_all()
+        return pa.Table.from_arrays(array)
 
 
 @dispatch

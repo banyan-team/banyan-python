@@ -403,6 +403,7 @@ def _get_factor(factor: float, f: tuple, frt: tuple) -> float:
     # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
     frt_percentile = sample_percentile(frt_sample, frtkey, min_frt, max_frt)
     frtfactor = 1.0 / frt_percentile
+    # Note that frt_percentile could be Inf and frtfactor would be 0
     return max(factor, frtfactor)
 
 
