@@ -13,8 +13,6 @@ import pytz
 import requests
 import toml
 
-
-from botocore.exceptions import ClientError
 from .config import load_config
 from datetime import datetime
 from typing import Dict
@@ -44,16 +42,6 @@ def get_aws_config_region():
 
 def method_to_endpoint(method):
     return method.replace("_", "-")
-
-
-def s3_bucket_arn_to_name(s3_bucket_arn: str):
-    # Get s3 bucket name from arn
-    s3_bucket_name = s3_bucket_arn.split(":")[-1]
-    if s3_bucket_name.endswith("/") or s3_bucket_name.endswith("*"):
-        s3_bucket_name = s3_bucket_name[:-1]
-    elif s3_bucket_name.endswith("/*"):
-        s3_bucket_name = s3_bucket_name[:-2]
-    return s3_bucket_name
 
 
 def parse_bytes(s:str):
@@ -107,7 +95,6 @@ def send_request_get_response(method: str, content: dict):
         # HTTP request timed out, for example
         if isinstance(data, Dict) and "message" in data:
             data = data["message"]
-        # @error data #?????
         return None
     elif resp.status_code == 500 or resp.status_code == 504:
         raise Exception(data)
@@ -126,8 +113,8 @@ def get_python_version():
 
     Returns
     -------
-    string
-        Python version is returned as a string
+    str
+        The Python version returned as a string
     """
     return platform.python_version()
 
@@ -137,22 +124,21 @@ def parse_time(time):
 
     Parameters
     ---------
-    time : string
+    time : str
         The current time in the format "yyyy-mm-dd-HH:MM:SSzzzz"
+
     Returns
     -------
-    string
-        The DateTime is returned.
+    str
+        The `DateTime` for the given time string
     """
     time = datetime.fromisoformat(time)
-    # time = datetime.strptime(time[:-4], '%Y-%m-%d-%H:%M:%S') #we don't want milli-second
     timezone = pytz.timezone("UTC")
     time = timezone.localize(time)
     local_time = time.astimezone()
     return local_time
 
 
-# TO DO - to test this function
 def get_loaded_packages():
     """Returns all the packages/libraries that are currently imported by the user"""
     return [
@@ -163,59 +149,30 @@ def get_loaded_packages():
 
 
 def get_hash(s):
-    """Gets a unique represetation of a string
+    """Gets a unique representation of a string
 
     Parameters
     ----------
-    s : string
+    s : str
+        The string to take a hash of
 
     Returns
     -------
-    string :
-        the SHA256 hash of the string
+    str
+        The SHA256 hash of the string
 
     """
     hs = hashlib.sha256(s.encode("utf-8")).hexdigest()
     return hs
 
 
-def upload_file_to_s3(filename, bucket, object_name=None):
-    """Uploads file to the S3 bucket
-
-    Parameters
-    ----------
-    filename: string
-        Is the local path to the file to upload
-    bucket: string
-        Is the S3 bucket to which to upload the file to
-
-    Returns
-    -------
-    boolean: True if file was uploaded, else False
-    """
-
-    # if S3 object_name not specified, use filename
-    key = os.path.basename(filename)
-
-    # upload the file
-    try:
-        reponse = s3_client.upload_file(
-            filename, bucket, object_name if object_name is not None else key
-        )
-    except ClientError as e:
-        logging.error(e)
-        return False
-    return True
-
-
 def load_toml(path):
-    # path --> "file://.banyan/banyanconfig.toml"
-    # path[2:], path[4:8], path[:9]
     if isinstance(path, list):
         result = {}
         for p in path:
             result.update(load_toml(p))
         return result
+    
     if path.startswith("file://"):
         return toml.load(path[7:-1])
 
@@ -225,29 +182,5 @@ def load_toml(path):
     elif (path.startswith("http://")) or (path.startswith("https://")):
         r = (
             requests.get(path)
-        ).content  # downloads the data from the internet into a toml-fomatted string
+        ).content
         return toml.loads(requests.get(path).text)
-
-
-def to_py_value_contents(py):
-    # Handle functions defined in a module
-    # TODO: Document this special case
-    # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
-    # if jl isa Expr && eval(jl) isa Function
-    #     jl = Dict("is_banyan_udf" => true, "code" => jl)
-    # end
-
-    # Convert Python object to string
-    return codecs.encode(pickle.dumps(py), "base64").decode()
-
-
-def from_py_value_contents(py_value_contents):
-    # Converty string to Python object
-    return pickle.loads(codecs.decode(py_value_contents.encode(), "base64"))
-
-    # # Handle functions defined in a module
-    # if res isa Dict && haskey(res, "is_banyan_udf") && res["is_banyan_udf"]
-    #     eval(res["code"])
-    # else
-    #     res
-    # end
