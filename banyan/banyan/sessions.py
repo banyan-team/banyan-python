@@ -1,3 +1,2 @@
-def start_session(
-):
+def start_session():
     pass

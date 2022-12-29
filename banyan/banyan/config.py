@@ -3,8 +3,9 @@ This file contains utils files related to setting and
 loading configurations.
 """
 
-from banyan.imports import *
 from copy import deepcopy
+
+from banyan.imports import *
 
 banyan_config = None  # Global variable representing configuration
 
@@ -43,7 +44,9 @@ def write_config(banyanconfig_path: Optional[str] = None):
             os.path.expanduser("~"), ".banyan/banyanconfig.toml"
         )
 
-    os.makedirs(os.path.join(os.path.expanduser("~"), ".banyan/"), exist_ok=True)
+    os.makedirs(
+        os.path.join(os.path.expanduser("~"), ".banyan/"), exist_ok=True
+    )
 
     with open(banyanconfig_path, "w") as f:
         toml.dump(banyan_config, f)
@@ -106,7 +109,6 @@ def configure(
                 "banyan": {"user_id": user_id, "api_key": api_key},
                 "aws": {},
             }
-            is_modified = True
         else:
             raise Exception(
                 "Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml"

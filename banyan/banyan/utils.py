@@ -1,21 +1,18 @@
-from .constants import BANYAN_API_ENDPOINT
-
-import boto3
-import codecs
 import hashlib
 import inspect
 import json
-import logging
 import os
-import pickle
 import platform
+from datetime import datetime
+from typing import Dict
+
+import boto3
 import pytz
 import requests
 import toml
 
 from .config import load_config
-from datetime import datetime
-from typing import Dict
+from .constants import BANYAN_API_ENDPOINT
 
 s3_client = boto3.client("s3")
 
@@ -44,7 +41,7 @@ def method_to_endpoint(method):
     return method.replace("_", "-")
 
 
-def parse_bytes(s:str):
+def parse_bytes(s: str):
     s = s.replace(" ", "")
     if not any([char.isdigit() for char in s]):
         s = "1" + s
@@ -85,7 +82,9 @@ def send_request_get_response(method: str, content: dict):
         "content-type": "application/json",
         "Username-APIKey": f"{user_id}-{api_key}",
     }
-    resp = requests.post(url=url, json=content, headers=headers)  # , timeout=30)
+    resp = requests.post(
+        url=url, json=content, headers=headers
+    )  # , timeout=30)
     data = json.loads(resp.text)
     if resp.status_code == 403:
         raise Exception(
@@ -99,7 +98,9 @@ def send_request_get_response(method: str, content: dict):
     elif resp.status_code == 500 or resp.status_code == 504:
         raise Exception(data)
     elif resp.status_code == 502:
-        raise Exception("Sorry there has been an error. Please contact support.")
+        raise Exception(
+            "Sorry there has been an error. Please contact support."
+        )
     return data
 
 
@@ -172,7 +173,7 @@ def load_toml(path):
         for p in path:
             result.update(load_toml(p))
         return result
-    
+
     if path.startswith("file://"):
         return toml.load(path[7:-1])
 
@@ -180,7 +181,5 @@ def load_toml(path):
         raise Exception("S3 path not currently supported")
 
     elif (path.startswith("http://")) or (path.startswith("https://")):
-        r = (
-            requests.get(path)
-        ).content
+        (requests.get(path)).content
         return toml.loads(requests.get(path).text)

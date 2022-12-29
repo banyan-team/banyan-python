@@ -23,7 +23,7 @@ def test_args():
 
     try:
         os.remove(banyanconfig_path)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         pass
 
 
@@ -46,13 +46,15 @@ def test_environ():
 
     try:
         os.remove(banyanconfig_path)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         pass
 
 
 def test_toml():
     banyanconfig_path = "tempfile_toml.toml"
-    configure(user_id=user_id, api_key=api_key, banyanconfig_path=banyanconfig_path)
+    configure(
+        user_id=user_id, api_key=api_key, banyanconfig_path=banyanconfig_path
+    )
 
     del os.environ["BANYAN_USER_ID"]
     del os.environ["BANYAN_API_KEY"]
@@ -70,5 +72,5 @@ def test_toml():
 
     try:
         os.remove(banyanconfig_path)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         pass
