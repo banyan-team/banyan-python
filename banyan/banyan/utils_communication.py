@@ -6,5 +6,6 @@ from typing import Any
 def send_to_client(data: Any):
     raise NotImplementedError()
 
+
 def receive_to_client():
     raise NotImplementedError()
