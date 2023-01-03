@@ -76,7 +76,7 @@ def send_request_get_response(method: str, content: dict):
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
 
-    url = (BANYAN_API_ENDPOINT) + "banyan-main"
+    url = BANYAN_API_ENDPOINT + "banyan-main"
     content["method"] = method.replace("-", "_")
     content["debug"] = is_debug_on()
     headers = {
