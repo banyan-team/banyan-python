@@ -17,4 +17,4 @@ if boto3.Session().region_name == None:
 from .annotation import Future, record_task
 from .config import configure
 from .constants import *
-from .utils_future_computation import PartitionType
+from .utils_future_computation import PartitionType, pt

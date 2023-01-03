@@ -99,3 +99,22 @@ def test_record_task_with_constants():
         ],
     )
     assert len(res._task_graph[0].args) == 2
+
+
+def test_record_task_create_new_future():
+    arg = bn.Future()
+    res = bn.record_task(
+        "res",
+        filter_df,
+        [arg, lambda x: x * 2],
+        [
+            {arg: "Blocked", "res": "Blocked"},
+            {arg: "Grouped", "res": "Grouped"},
+            {
+                arg: bn.PartitionType("Grouped", {"key": "species"}),
+                "res": "Grouped",
+            },
+            {arg: "Replicated", "res": "Replicated"},
+        ],
+    )
+    assert len(res._task_graph[0].args) == 2

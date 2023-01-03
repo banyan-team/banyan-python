@@ -195,6 +195,10 @@ def _arg_to_dict_or_str(arg: Any) -> Union[str, Dict[str, Any]]:
         return to_str(arg)
 
 
+def pt(name, **kwargs) -> PartitionType:
+    return PartitionType(name, kwargs)
+
+
 def _arg_from_dict_or_str(
     arg: Union[str, Dict[str, Any]], use_cloudpickle=False
 ) -> Any:
@@ -286,7 +290,7 @@ class FutureComputation:
         self.args = args
         self.results = results
         self.partitioning_list = partitioning
-        self.name = name or "unknown_func"
+        self.name = name if name is not None else func.func_name
         self.static = static or []
         self._assert_valid()
 
