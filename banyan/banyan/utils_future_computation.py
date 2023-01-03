@@ -9,7 +9,8 @@ from hashlib import md5
 from typing import Any, Dict, List, Optional, Set, Union
 
 from typing_extensions import Self
-from utils_serialization import from_str, to_str
+
+from .utils_serialization import from_str, to_str
 
 """ID of a future computation created on the client side"""
 FutureId = str
