@@ -87,12 +87,14 @@ def record_task(
             new_future = Future()
             new_futures[results[i]] = new_future
             results[i] = new_future
+            result_ids[i] = new_future.id
     partitioning = _to_list(partitioning)
     for partitioning_map in partitioning:
         if isinstance(partitioning_map, dict):
-            for k, v in partitioning_map.items():
+            for k in list(partitioning_map.keys()):
                 if k in new_futures:
-                    partitioning_map[new_futures[k]] = v
+                    partitioning_map[new_futures[k]] = partitioning_map[k]
+                    partitioning_map.pop(k, None)
 
     # Construct a `FutureComputation` for the new task`
     fc = FutureComputation(
@@ -128,4 +130,7 @@ def record_task(
         # Record the new task
         result._record_task(fc)
 
+    # Return result futures
+    if len(results) == 1:
+        return results[0]
     return results
