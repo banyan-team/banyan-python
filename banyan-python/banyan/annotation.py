@@ -36,7 +36,7 @@ class Future:
             },
         )
         return receive_to_client()
-    
+
     def __future__(self):
         return self
 
