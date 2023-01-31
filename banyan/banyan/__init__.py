@@ -9,7 +9,6 @@ __version__ = "0.2.0"
 
 # Check if AWS region is set. If not, default to us-west-2 and give a warning
 if boto3.Session().region_name == None:
-    import logging
     logging.warning(
         "Defaulting to region us-west-2. If you want to use a different AWS region, "
         "please set the `AWS_DEFAULT_REGION` environment variable or update the "

@@ -20,7 +20,6 @@ _lambda_client = boto3.client("lambda")
 _s3_client = boto3.client("s3")
 
 
-
 def _get_executor_code_from_s3():
     return _s3_client.get_object(
         Bucket="banyan-executor",
@@ -90,18 +89,6 @@ def _create_executor_lambda_iam_role():
                 },
                 "Action": "sts:AssumeRole"
             },
-            # {
-            #     "Effect": "Allow",
-            #     "Action": [
-            #         "logs:CreateLogGroup",
-            #         "logs:CreateLogStream",
-            #         "logs:DescribeLogStreams",
-            #         "logs:PutLogEvents"
-            #     ],
-            #     "Resource": [
-            #         "arn:aws:logs:*:*:log-group:/aws/lambda/*:*"
-            #     ]
-            # },
         ]
     }
     basic_lambda_policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
