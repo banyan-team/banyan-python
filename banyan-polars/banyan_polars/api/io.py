@@ -14,3 +14,5 @@ def read_csv(p):
             ["Blocked", "Consolidated", "Grouped"],
         )
     )
+
+# TODO: Implement write_csv such that it writes and returns the location it has written to
