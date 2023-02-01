@@ -25,5 +25,6 @@ from banyan.utils_future_computation import PartitionType
 
 __all__ = (
     "configure",
+    "SessionInfo",
     "start_session",
 )
