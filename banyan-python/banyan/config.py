@@ -3,8 +3,11 @@ This file contains utils files related to setting and
 loading configurations.
 """
 
-from banyan.imports import *
+import os
 from copy import deepcopy
+from typing import Optional
+
+import toml
 
 banyan_config = None  # Global variable representing configuration
 
@@ -43,7 +46,9 @@ def write_config(banyanconfig_path: Optional[str] = None):
             os.path.expanduser("~"), ".banyan/banyanconfig.toml"
         )
 
-    os.makedirs(os.path.join(os.path.expanduser("~"), ".banyan/"), exist_ok=True)
+    os.makedirs(
+        os.path.join(os.path.expanduser("~"), ".banyan/"), exist_ok=True
+    )
 
     with open(banyanconfig_path, "w") as f:
         toml.dump(banyan_config, f)
@@ -53,7 +58,6 @@ def write_config(banyanconfig_path: Optional[str] = None):
 def configure(
     user_id: Optional[str] = None,
     api_key: Optional[str] = None,
-    ec2_key_pair_name: Optional[str] = None,
     banyanconfig_path: Optional[str] = None,
 ):
     """Sets configuration.
@@ -63,7 +67,6 @@ def configure(
     Arguments:
     - user_id:Optional[str], defaults to None
     - api_key:Optional[str], defaults to None
-    - ec2_key_pair_name:Optional[str], defaults to None
     - banyanconfig_path:Optional[str], defaults to None
         file to save configurations to
         if None (recommended), will use "$HOME/.banyan/banyanconfig.toml"
@@ -82,10 +85,6 @@ def configure(
     if api_key is None and not api_key_env is None:
         api_key = api_key_env
 
-    ec2_env = os.getenv("BANYAN_EC2_KEY_PAIR_NAME")
-    if ec2_key_pair_name is None and not ec2_env == None:
-        ec2_key_pair_name = ec2_env
-
     # Check banyan_config file
     banyan_config_has_info = not (banyan_config is None or banyan_config == {})
     if (
@@ -102,13 +101,6 @@ def configure(
         and "api_key" in banyan_config["banyan"]
     ):
         api_key = banyan_config["banyan"]["api_key"]
-    if (
-        ec2_key_pair_name is None
-        and banyan_config_has_info
-        and "aws" in banyan_config
-        and "ec2_key_pair_name" in banyan_config["aws"]
-    ):
-        ec2_key_pair_name = banyan_config["aws"]["ec2_key_pair_name"]
 
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
@@ -119,7 +111,6 @@ def configure(
                 "banyan": {"user_id": user_id, "api_key": api_key},
                 "aws": {},
             }
-            is_modified = True
         else:
             raise Exception(
                 "Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml"
