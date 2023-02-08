@@ -159,16 +159,22 @@ def shuffle(data: List[Any]) -> List[Any]:
     to its destination worker and then receives data from each worker and
     returns a list with an element for each worker received from.
     """
+    if len(data) != get_num_workers():
+        raise ValueError(
+            "Expected an element in the list for each of the "
+            f"{get_num_workers()} workers to shuffle the data across."
+        )
     return send_receive("shuffle", data)
 
-def gather(data: Optional[Any] = NO_DATA) -> List[Any]:
+def gather(data: Any) -> List[Any]:
     """
     Gathers data in a list to the main worker with an element for each worker
 
     Arguments
     ---------
-    data : Optional[Any]
-        Don't specify if called from main worker
+    data : Any
+        Each worker supplies some data that is then collected into a list
+        on the main worker.
     """
     return send_receive("gather", data)
 
@@ -182,6 +188,11 @@ def scatter(data: Optional[List[Any]] = NO_DATA) -> List[Any]:
     data : Optional[List[Any]]
         Only specify if called from main worker
     """
+    if (data != NO_DATA) == is_main_worker():
+        raise ValueError(
+            "Data should only be specified for the main worker it is to be "
+            "scattered from."
+        )
     return send_receive("scatter", data)
 
 def send_receive(pattern, data):
@@ -337,6 +348,7 @@ def send_receive(pattern, data):
 
         curr_queue_url = get_queue_url(curr_worker_idx)
         num_chunks_remaining = {}
+        already_received = set()
         receiving_from = [
             worker_idx
             for worker_idx in src_worker_indices
@@ -353,7 +365,14 @@ def send_receive(pattern, data):
                 msg = json.loads(msg_body)
                 src_worker_idx = msg["src_worker_idx"]
                 dst_worker_idx = msg["dst_worker_idx"]
+                chunk_idx = msg["chunk_idx"]
                 dst_process_idx = get_process_idx(dst_worker_idx)
+
+                # Skip if already processed
+                k = (dst_worker_idx, chunk_idx)
+                if k in already_received:
+                    continue
+                already_received.add(k)
 
                 # Send to destination process
                 if pattern == "shuffle" or pattern == "scatter":
@@ -361,13 +380,13 @@ def send_receive(pattern, data):
                 elif pattern == "gather":
                     received_chunks[
                         (src_worker_idx, chunk_idx)
-                    ] = message["data_str"]
+                    ] = msg["data_str"]
 
                 # Update # of chunks remaining
                 key = (src_worker_idx, dst_process_idx)
                 if key not in num_chunks_remaining:
                     num_chunks_remaining[key] = msg["num_chunks"]
-                    num_chunks_needed[dst_worker_idx] = message["num_chunks"]
+                    num_chunks_needed[dst_worker_idx] = msg["num_chunks"]
                 num_chunks_remaining[key] -= 1
 
     # (3) Receive messages from main process.
@@ -424,8 +443,64 @@ def sync():
 
 
 def send_to_client(data: Any):
-    raise NotImplementedError()
+    global num_messages_sent
+    
+    # Stringify and batch each piece of data
+    from .constants import MAX_SQS_MESSAGE_LENGTH 
+    data = list(batch(to_str(data), MAX_SQS_MESSAGE_LENGTH))
+    num_chunks = len(data)
+
+    # Send each chunk in a separate message
+    SQS = sqs()
+    for chunk_idx, data_str_batch in enumerate(data):
+        message = {
+            "data_str": data_str_batch,
+            "src_worker_idx": 0,
+            "dst_worker_idx": -1,
+            "chunk_idx": chunk_idx,
+            "num_chunks": num_chunks,
+        }
+
+        SQS.send_message(
+            QueueUrl=get_queue_url("client"),
+            MessageBody=json.dumps(message),
+            # We set this ID using the chunk index so that messages are sent
+            # out of order
+            MessageGroupId=f"0-client-{chunk_idx}",
+            MessageDeduplicationId=f"{num_messages_sent}-0-client",
+        )
+    num_messages_sent += num_chunks
 
 
 def receive_to_client():
-    raise NotImplementedError()
+    SQS = sqs()
+
+    num_chunks_remaining = -1
+    already_received = set()
+    received_chunks = {}
+    while num_chunks_remaining != 0:
+        resp = SQS.receive_message(QueueUrl=get_queue_url("client"))
+        for msg in resp["Messages"]:
+            msg_body = msg["Body"]
+            msg = json.loads(msg_body)
+            chunk_idx = msg["chunk_idx"]
+
+            # Skip if already processed
+            if chunk_idx in already_received:
+                continue
+            already_received.add(chunk_idx)
+
+            # Store chunks
+            received_chunks[chunk_idx] = msg["data_str"]
+
+            # Update # of chunks remaining
+            if num_chunks_remaining == -1:
+                num_chunks_remaining = msg["num_chunks"]
+            num_chunks_remaining -= 1
+    
+    # Deserialize and return the result
+    data_str = "".join(
+        [received_chunks[i] for i in range(len(received_chunks))]
+    )
+    return from_str(data_str)
+
