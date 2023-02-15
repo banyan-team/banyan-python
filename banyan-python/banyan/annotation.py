@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
 from .sessions import get_session_id
-from .utils import send_request_get_response
+from .utils import send_request_get_response, to_list
 from .utils_communication import receive_to_client, send_to_client
 from .utils_future_computation import (
     FutureComputation,
@@ -14,18 +14,28 @@ from .utils_future_computation import (
 
 
 class Future:
+    """
+    Represents data not yet computed and stores the steps to compute it
+    """
+
     def __init__(self):
         self._id: FutureId = _new_future_id()
         self._task_graph: TaskGraph = []
 
     @property
     def id(self):
+        """
+        Returns a unique ID for this future computation
+        """
         return self._id
 
     def _record_task(self, fc: FutureComputation):
         self._task_graph.append(fc)
 
     def compute(self):
+        """
+        Computes this future and returns its concrete value
+        """
         record_task(self, send_to_client, self, {self: "Consolidated"})
         send_request_get_response(
             "run_computation",
@@ -36,6 +46,17 @@ class Future:
             },
         )
         return receive_to_client()
+
+
+    def __future__(self):
+        return self
+
+
+def to_future(obj) -> Optional[Future]:
+    if isinstance(obj, Future) or hasattr(obj, "__future__"):
+        return obj.__future__()
+    else:
+        return None
 
 
 def _futures_to_future_ids(
@@ -52,13 +73,8 @@ def _futures_to_future_ids(
         ]
 
 
-def _to_list(l) -> Optional[List]:
-    if isinstance(l, List):
-        return l
-    elif l is None:
-        return None
-    else:
-        return [l]
+def _to_futures_list(l: List) -> List:
+    return [(to_future(x) if to_future(x) is not None else x) for x in l]
 
 
 PartitioningSpec = Union[
@@ -75,8 +91,48 @@ def record_task(
     partitioning: Union[PartitioningSpec, List[PartitioningSpec]],
     static=None,
 ):
-    args = _to_list(args)
-    results = _to_list(results)
+    """
+    Records a task with the given function in the task graph for the results
+
+    Given result futures, a function, and argument futures (think
+    "results = func(args)"), this will record a task in the result futures'
+    task graphs with the function and references to the argument futures.
+
+    A partitioning can also be specified to indicate the partition types that
+    can be assigned to the result and argument futures.
+
+    Arguments
+    ---------
+    results : Union[Union[Future, str], List[Union[Future, str]]]
+        The futures for the results of the function. If a string is provided,
+        a new future is automatically created for the result and returned.
+    func : Any
+        The function that gets run when this recorded task is finally executed
+    args : Union[Union[Future, str], List[Union[Future, str]], Any]
+        The futures or concrete values to be passed into the function
+    partitioning : PartitioningSpec
+        The assignment of partition types to each result or argument future.
+        This can be either a partition type or partition type name (in which
+        case the partition type is applied to all futures) or a dictionary
+        mapping from future (or future ID) to a partition type or list of
+        partition types.
+
+    Returns
+    -------
+    A future or list of futures depending on whether there are one or more
+    result futures.
+
+    Examples
+    --------
+    >>> bn.record_task(
+            "res",
+            pl.DataFrame.filter,
+            [self, expr],
+            ["Blocked", "Consolidated", "Grouped"],
+        )
+    """
+    args = _to_futures_list(to_list(args))
+    results = to_list(results)
     arg_ids = list(filter(is_future_id, _futures_to_future_ids(args)))
     result_ids = _futures_to_future_ids(results)
 
@@ -88,7 +144,7 @@ def record_task(
             new_futures[results[i]] = new_future
             results[i] = new_future
             result_ids[i] = new_future.id
-    partitioning = _to_list(partitioning)
+    partitioning = to_list(partitioning)
     for partitioning_map in partitioning:
         if isinstance(partitioning_map, dict):
             for k in list(partitioning_map.keys()):
