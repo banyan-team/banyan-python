@@ -21,6 +21,7 @@ _iam_client = boto3.client("iam")
 _lambda_client = boto3.client("lambda")
 _s3_client = boto3.client("s3")
 
+
 curr_session_info: Dict[SessionId, SessionInfo] = {}
 
 
@@ -104,6 +105,9 @@ def _create_executor_lambda_iam_role():
         )
         _iam_client.get_waiter("role_exists").wait(RoleName=iam_role_name)
         _iam_client.attach_role_policy(RoleName=iam_role_name, PolicyArn=basic_lambda_policy_arn)
+        # Sleep to ensure that the policy has been attached
+        # TODO: Instead of sleeping, adding a try/catch or a while loop to check
+        # if the policy has been attached would be more robust.
         time.sleep(5)
     except ClientError as error:
         if error.response["Error"]["Code"] == "EntityAlreadyExists":

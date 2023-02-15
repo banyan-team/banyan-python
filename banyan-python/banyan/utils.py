@@ -4,7 +4,7 @@ import json
 import os
 import platform
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List, Optional
 
 import boto3
 import pytz
@@ -122,7 +122,8 @@ def get_python_version():
 
 
 def convert_iso_time(time):
-    """Convert time from ISO-8601 format (YYYY-MM-DDThh:mm:ss.sTZD) to seconds."""
+    """Convert time from ISO-8601 format (YYYY-MM-DDThh:mm:ss.sTZD)
+    to seconds."""
     return datetime.strptime(
         time, "%Y-%m-%dT%H:%M:%S.%f%z"
     ).timestamp()
@@ -191,3 +192,12 @@ def load_toml(path):
     elif (path.startswith("http://")) or (path.startswith("https://")):
         (requests.get(path)).content
         return toml.loads(requests.get(path).text)
+
+
+def to_list(l) -> Optional[List]:
+    if isinstance(l, List):
+        return l
+    elif l is None:
+        return None
+    else:
+        return [l]
