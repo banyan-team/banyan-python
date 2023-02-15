@@ -3,11 +3,12 @@ This file contains utils files related to setting and
 loading configurations.
 """
 
-import os
 from copy import deepcopy
+import os
 from typing import Optional
 
 import toml
+
 
 banyan_config = None  # Global variable representing configuration
 

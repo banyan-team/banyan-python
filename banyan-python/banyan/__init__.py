@@ -3,7 +3,9 @@ import os
 
 import boto3
 
+
 __version__ = "0.2.0"
+
 
 # Check if AWS region is set. If not, default to us-west-2 and give a warning
 if boto3.Session().region_name == None:
@@ -14,7 +16,13 @@ if boto3.Session().region_name == None:
     )
     os.environ["AWS_DEFAULT_REGION"] = "us-west-2"
 
-from .annotation import Future, record_task
-from .config import configure
-from .constants import *
-from .utils_future_computation import PartitionType, pt
+from banyan.annotation import Future, record_task
+from banyan.config import configure
+from banyan.constants import *  # TODO: Should this really be here?
+from banyan.sessions import start_session
+from banyan.utils_future_computation import PartitionType, pt
+
+__all__ = (
+    "configure",
+    "start_session",
+)

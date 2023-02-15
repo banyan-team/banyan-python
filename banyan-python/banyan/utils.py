@@ -121,6 +121,14 @@ def get_python_version():
     return platform.python_version()
 
 
+def convert_iso_time(time):
+    """Convert time from ISO-8601 format (YYYY-MM-DDThh:mm:ss.sTZD)
+    to seconds."""
+    return datetime.strptime(
+        time, "%Y-%m-%dT%H:%M:%S.%f%z"
+    ).timestamp()
+
+
 def parse_time(time):
     """Converts given time to local timezone.
 
