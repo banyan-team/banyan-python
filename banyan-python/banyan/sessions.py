@@ -3,12 +3,14 @@ import json
 import os
 import shutil
 import time
+from typing import Dict
 import zipfile
 
 import boto3
 from botocore.exceptions import ClientError
 
 from banyan.config import configure
+from banyan.session_info import SessionInfo
 from banyan.utils import convert_iso_time, send_request_get_response
 
 
@@ -18,6 +20,9 @@ SUPPORTED_PYTHON_VERSIONS = ["3.7", "3.8", "3.9"]
 _iam_client = boto3.client("iam")
 _lambda_client = boto3.client("lambda")
 _s3_client = boto3.client("s3")
+
+
+curr_session_info: Dict[SessionId, SessionInfo] = {}
 
 
 def _get_executor_code_from_s3():
@@ -192,6 +197,15 @@ def start_session(
             "session_name": session_name,
         },
     )
+    session = SessionInfo(
+        session_name=response["session_name"],
+        session_id=response["session_id"],
+        num_workers=num_workers,
+        scatter_queue_url=response["scatter_queue_url"],
+        gather_queue_url=response["gather_queue_url"],
+    )
+    global curr_session_info
+    curr_session_info[response["session_id"]] = session
 
 
 def get_session_id() -> SessionId:

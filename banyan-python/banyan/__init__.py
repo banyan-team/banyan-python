@@ -16,6 +16,7 @@ if boto3.Session().region_name == None:
     )
     os.environ["AWS_DEFAULT_REGION"] = "us-west-2"
 
+
 from banyan.annotation import Future, record_task
 from banyan.config import configure
 from banyan.constants import *  # TODO: Should this really be here?
@@ -24,5 +25,6 @@ from banyan.utils_future_computation import PartitionType, pt
 
 __all__ = (
     "configure",
+    "SessionInfo",
     "start_session",
 )
