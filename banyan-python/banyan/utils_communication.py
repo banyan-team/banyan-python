@@ -133,12 +133,13 @@ def get_queue_url(dst=None, src=None):
         return get_worker_config()["shuffle_queue_urls"][dst]
 
 
-def get_pipe(dst_worker_idx=None):
+def get_pipe(dst_worker_idx_or_process_idx=None):
     process_pipes = get_worker_config()["process_pipes"]
+    idx = dst_worker_idx_or_process_idx
     return process_pipes[
         0
-        if (dst_worker_idx is None or len(process_pipes) == 1)
-        else get_process_idx(dst_worker_idx)
+        if (idx is None or len(process_pipes) == 1)
+        else get_process_idx(idx)
     ]
 
 def is_main_worker(worker_idx):
